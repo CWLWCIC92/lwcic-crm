@@ -157,7 +157,7 @@ function getUpcomingBirthdays(members,days=30){
   });
 }
 function getMissedSundays(memberId,attendance){
-  const sorted=[...attendance].sort((a,b)=>b.date.localeCompare(a.date));
+  const sorted=[...attendance].sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   let missed=0;
   for(const s of sorted){if(s.present.includes(memberId))break;missed++;}
   return missed>=2;
@@ -231,7 +231,7 @@ function Dashboard({members,giving,attendance,groups,events,onNav}){
   const thisMonth=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}`;
   const monthlyTotal=giving.filter(g=>g.date.startsWith(thisMonth)).reduce((s,g)=>s+g.amount,0);
   const yearlyTotal=giving.filter(g=>g.date.startsWith(`${today.getFullYear()}`)).reduce((s,g)=>s+g.amount,0);
-  const lastService=attendance.length?[...attendance].sort((a,b)=>b.date.localeCompare(a.date))[0]:null;
+  const lastService=attendance.length?[...attendance].sort((a,b)=>(b.date||"").localeCompare(a.date||""))[0]:null;
   const attRate=lastService?(lastService.present.length/members.filter(m=>m.status==="Member").length*100).toFixed(0):0;
   const upcoming=getUpcomingBirthdays(members,30);
   const missed=members.filter(m=>getMissedSundays(m.id,attendance));
@@ -427,7 +427,7 @@ function GroupsModule({members,groups,onSaveGroup,onDeleteGroup,currentUser}){
           <label style={{display:"block",fontSize:11,color:"#64748b",fontWeight:600,marginBottom:4,textTransform:"uppercase",letterSpacing:0.6}}>Group Leader</label>
           <select className="field-input" value={form.leaderId} onChange={e=>setForm(f=>({...f,leaderId:+e.target.value}))}>
             <option value="">Select leader…</option>
-            {[...members].sort((a,b)=>a.lastName.localeCompare(b.lastName)).map(m=><option key={m.id} value={m.id}>{m.lastName}, {m.firstName}</option>)}
+            {[...members].sort((a,b)=>(a.lastName||"").localeCompare(b.lastName||"")).map(m=><option key={m.id} value={m.id}>{m.lastName}, {m.firstName}</option>)}
           </select>
         </div>
         <div>
@@ -441,7 +441,7 @@ function GroupsModule({members,groups,onSaveGroup,onDeleteGroup,currentUser}){
     <div className="card" style={{padding:26,marginBottom:14}}>
       <SectionHeader emoji="👥" title="Members"/>
       <div style={{display:"flex",flexDirection:"column",gap:8}}>
-        {[...members].sort((a,b)=>a.lastName.localeCompare(b.lastName)).map(m=>{
+        {[...members].sort((a,b)=>(a.lastName||"").localeCompare(b.lastName||"")).map(m=>{
           const inGroup=form.members.find(gm=>gm.memberId===m.id);
           return <div key={m.id} style={{display:"flex",alignItems:"center",gap:12,padding:"8px 0",borderBottom:"1px solid #f0f4f9"}}>
             <input type="checkbox" checked={!!inGroup} onChange={()=>toggleMember(m.id)} style={{width:16,height:16,accentColor:"#1B4F8A",cursor:"pointer"}}/>
@@ -472,7 +472,7 @@ function CommsModule({members,groups,messages,onSendMessage,currentUser}){
 
   const canSendToAll=currentUser.role==="Pastor"||currentUser.role==="Co-Pastor";
   const myGroups=canSendToAll?groups:groups.filter(g=>g.leaderId===currentUser.id);
-  const activeMembers=useMemo(()=>[...members].filter(m=>m.status==="Member"||m.status==="Visitor").sort((a,b)=>a.lastName.localeCompare(b.lastName)),[members]);
+  const activeMembers=useMemo(()=>[...members].filter(m=>m.status==="Member"||m.status==="Visitor").sort((a,b)=>(a.lastName||"").localeCompare(b.lastName||"")),[members]);
 
   const recipientCount=useMemo(()=>{
     if(form.toType==="all")return members.filter(m=>m.status==="Member").length;
@@ -612,7 +612,7 @@ function CommsModule({members,groups,messages,onSendMessage,currentUser}){
     {subView==="log"&&<div className="slide-in">
       <div className="card" style={{overflow:"hidden"}}>
         {messages.length===0?<div style={{padding:40,textAlign:"center",color:"#94a3b8"}}><div style={{fontSize:32,marginBottom:8}}>📭</div>No messages sent yet.</div>:
-          [...messages].sort((a,b)=>b.date.localeCompare(a.date)).map(msg=>{
+          [...messages].sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(msg=>{
             const sender=members.find(m=>m.id===msg.sentBy);
             return <div key={msg.id} className="msg-row">
               <div style={{width:36,height:36,borderRadius:10,background:msg.channel==="Email"?"#e8f0fe":"#e8f5e9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>
@@ -830,7 +830,7 @@ function GivingModule({members,giving,onAddGift,onDeleteGift}){
   const [gForm,setGForm]=useState({memberId:"",date:todayStr(),amount:"",method:"Cash",category:"Tithe",note:""});
   const [gErr,setGErr]=useState({});
   const memberMap=useMemo(()=>Object.fromEntries(members.map(m=>[m.id,m])),[members]);
-  const filtered=useMemo(()=>giving.filter(g=>(filterMember==="all"||g.memberId===Number(filterMember))&&(!filterMonth||g.date.startsWith(filterMonth))&&(filterCat==="all"||g.category===filterCat)).sort((a,b)=>b.date.localeCompare(a.date)),[giving,filterMember,filterMonth,filterCat]);
+  const filtered=useMemo(()=>giving.filter(g=>(filterMember==="all"||g.memberId===Number(filterMember))&&(!filterMonth||g.date.startsWith(filterMonth))&&(filterCat==="all"||g.category===filterCat)).sort((a,b)=>(b.date||"").localeCompare(a.date||"")),[giving,filterMember,filterMonth,filterCat]);
   const filteredTotal=filtered.reduce((s,g)=>s+g.amount,0);
   const td=new Date();
   const thisMonth=`${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,"0")}`;
@@ -858,7 +858,7 @@ function GivingModule({members,giving,onAddGift,onDeleteGift}){
             <label style={{display:"block",fontSize:11,color:gErr.memberId?"#c62828":"#64748b",fontWeight:600,marginBottom:4,textTransform:"uppercase",letterSpacing:0.6}}>Member / Donor</label>
             <select className="field-input" value={gForm.memberId} onChange={e=>setGForm(f=>({...f,memberId:e.target.value}))} style={{borderColor:gErr.memberId?"#c62828":undefined}}>
               <option value="">Select member…</option>
-              {[...members].sort((a,b)=>a.lastName.localeCompare(b.lastName)).map(m=><option key={m.id} value={m.id}>{m.lastName}, {m.firstName}</option>)}
+              {[...members].sort((a,b)=>(a.lastName||"").localeCompare(b.lastName||"")).map(m=><option key={m.id} value={m.id}>{m.lastName}, {m.firstName}</option>)}
             </select>
           </div>
           <div><label style={{display:"block",fontSize:11,color:"#64748b",fontWeight:600,marginBottom:4,textTransform:"uppercase",letterSpacing:0.6}}>Date</label><input type="date" className="field-input" value={gForm.date} onChange={e=>setGForm(f=>({...f,date:e.target.value}))}/></div>
@@ -884,7 +884,7 @@ function GivingModule({members,giving,onAddGift,onDeleteGift}){
     </div>}
     {subView==="log"&&<div className="slide-in">
       <div className="card" style={{padding:"14px 16px",marginBottom:14,display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
-        <select className="field-input" value={filterMember} onChange={e=>setFilterMember(e.target.value)} style={{flex:"1 1 180px"}}><option value="all">All Members</option>{[...members].sort((a,b)=>a.lastName.localeCompare(b.lastName)).map(m=><option key={m.id} value={m.id}>{m.lastName}, {m.firstName}</option>)}</select>
+        <select className="field-input" value={filterMember} onChange={e=>setFilterMember(e.target.value)} style={{flex:"1 1 180px"}}><option value="all">All Members</option>{[...members].sort((a,b)=>(a.lastName||"").localeCompare(b.lastName||"")).map(m=><option key={m.id} value={m.id}>{m.lastName}, {m.firstName}</option>)}</select>
         <input type="month" className="field-input" value={filterMonth} onChange={e=>setFilterMonth(e.target.value)} style={{flex:"0 0 160px"}}/>
         <select className="field-input" value={filterCat} onChange={e=>setFilterCat(e.target.value)} style={{flex:"0 0 150px"}}><option value="all">All Categories</option>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select>
         <div style={{fontSize:14,fontWeight:700,color:"#1B4F8A",flexShrink:0}}>Total: {dollar(filteredTotal)}</div>
@@ -901,7 +901,7 @@ function GivingModule({members,giving,onAddGift,onDeleteGift}){
           <button className="btn-primary" style={{fontSize:13}} onClick={()=>{
             const yr=td.getFullYear();
             const EIN="82-2734521"; // ← REPLACE with Living Water's actual EIN
-            const rows=members.filter(m=>memberTotals[m.id]).sort((a,b)=>a.lastName.localeCompare(b.lastName)).map(m=>{
+            const rows=members.filter(m=>memberTotals[m.id]).sort((a,b)=>(a.lastName||"").localeCompare(b.lastName||"")).map(m=>{
               const d=memberTotals[m.id];
               const giftRows=d.gifts.sort((a,b)=>a.date.localeCompare(b.date)).map(g=>`
                 <tr>
@@ -973,7 +973,7 @@ function GivingModule({members,giving,onAddGift,onDeleteGift}){
           <div style={{display:"flex",padding:"10px 16px",background:"#f8fafc",fontWeight:700,fontSize:12,color:"#475569",textTransform:"uppercase",letterSpacing:0.6,borderBottom:"1px solid #e2e8f0"}}>
             <div style={{flex:1}}>Member</div><div style={{width:80,textAlign:"center"}}>Gifts</div><div style={{width:120,textAlign:"right"}}>Total Given</div><div style={{width:110,textAlign:"right"}}>Statement</div>
           </div>
-          {[...members].sort((a,b)=>a.lastName.localeCompare(b.lastName)).map(m=>{
+          {[...members].sort((a,b)=>(a.lastName||"").localeCompare(b.lastName||"")).map(m=>{
             const data=memberTotals[m.id];
             const [open,setOpen]=[false,()=>{}];
             return <StatementRow key={m.id} member={m} data={data} year={td.getFullYear()}/>;
@@ -1103,7 +1103,7 @@ function StatementRow({member,data,year}){
     </div>
     <span style={{color:"#b0bec5",fontSize:16,marginLeft:12}}>{open?"▾":"›"}</span>
   </div>
-  {open&&<div style={{background:"#f8fafc",padding:"12px 20px 16px 58px",borderBottom:"1px solid #e2e8f0"}}>{[...data.gifts].sort((a,b)=>b.date.localeCompare(a.date)).map(g=><div key={g.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #e9eef4",fontSize:13}}><span style={{color:"#475569"}}>{fmt(g.date)}</span><span style={{color:"#64748b"}}>{g.category}</span><span style={{color:METHOD_COLORS[g.method]||"#546E7A",fontWeight:600}}>{g.method}</span><span style={{fontWeight:700,color:"#2e7d32"}}>${g.amount.toFixed(2)}</span></div>)}<div style={{display:"flex",justifyContent:"space-between",paddingTop:10,fontWeight:800,fontSize:14,color:"#1B4F8A"}}><span>Total {year}</span><span>${data.total.toFixed(2)}</span></div></div>}
+  {open&&<div style={{background:"#f8fafc",padding:"12px 20px 16px 58px",borderBottom:"1px solid #e2e8f0"}}>{[...data.gifts].sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(g=><div key={g.id} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid #e9eef4",fontSize:13}}><span style={{color:"#475569"}}>{fmt(g.date)}</span><span style={{color:"#64748b"}}>{g.category}</span><span style={{color:METHOD_COLORS[g.method]||"#546E7A",fontWeight:600}}>{g.method}</span><span style={{fontWeight:700,color:"#2e7d32"}}>${g.amount.toFixed(2)}</span></div>)}<div style={{display:"flex",justifyContent:"space-between",paddingTop:10,fontWeight:800,fontSize:14,color:"#1B4F8A"}}><span>Total {year}</span><span>${data.total.toFixed(2)}</span></div></div>}
   </>;
 }
 
@@ -1118,7 +1118,7 @@ function AttendanceModule({members,attendance,onSaveService}){
   const toggleMember=id=>{setCheckedIn(s=>{const n=new Set(s);n.has(id)?n.delete(id):n.add(id);return n;});setSaved(false);};
   const handleDateChange=d=>{setServiceDate(d);const ex=attendance.find(a=>a.date===d);setCheckedIn(new Set(ex?ex.present:[]));setSaved(false);};
   const handleSave=()=>{onSaveService({date:serviceDate,present:[...checkedIn]});setSaved(true);};
-  const history=useMemo(()=>[...attendance].sort((a,b)=>b.date.localeCompare(a.date)),[attendance]);
+  const history=useMemo(()=>[...attendance].sort((a,b)=>(b.date||"").localeCompare(a.date||"")),[attendance]);
   const memberHistory=useMemo(()=>{if(histMember==="all")return null;const mid=Number(histMember);return history.map(s=>({...s,wasPresent:s.present.includes(mid)}));},[histMember,history]);
   return <div className="fade-in">
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
@@ -1143,7 +1143,7 @@ function AttendanceModule({members,attendance,onSaveService}){
         <button className="btn-ghost" onClick={()=>{setCheckedIn(new Set());setSaved(false);}} style={{fontSize:12,padding:"6px 14px"}}>❌ Clear All</button>
       </div>
       <div className="card" style={{overflow:"hidden"}}>
-        {[...activeMembers].sort((a,b)=>a.lastName.localeCompare(b.lastName)).map(m=>{const present=checkedIn.has(m.id);return <div key={m.id} className="check-row" onClick={()=>toggleMember(m.id)} style={{cursor:"pointer"}}>
+        {[...activeMembers].sort((a,b)=>(a.lastName||"").localeCompare(b.lastName||"")).map(m=>{const present=checkedIn.has(m.id);return <div key={m.id} className="check-row" onClick={()=>toggleMember(m.id)} style={{cursor:"pointer"}}>
           <div style={{width:28,height:28,borderRadius:8,border:`2px solid ${present?"#2e7d32":"#dde3ed"}`,background:present?"#2e7d32":"#fff",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.15s"}}>{present&&<span style={{color:"#fff",fontSize:16,fontWeight:700}}>✓</span>}</div>
           <Avatar member={m} size={36}/>
           <div style={{flex:1}}><div style={{fontSize:14,fontWeight:600,color:"#1e293b"}}>{m.firstName} {m.lastName}</div><RolePip role={m.role}/></div>
@@ -1155,7 +1155,7 @@ function AttendanceModule({members,attendance,onSaveService}){
       <div className="card" style={{padding:"14px 16px",marginBottom:14,display:"flex",gap:10,alignItems:"center"}}>
         <select className="field-input" value={histMember} onChange={e=>setHistMember(e.target.value)} style={{maxWidth:260}}>
           <option value="all">All Members — Service Overview</option>
-          {[...activeMembers].sort((a,b)=>a.lastName.localeCompare(b.lastName)).map(m=><option key={m.id} value={m.id}>{m.lastName}, {m.firstName}</option>)}
+          {[...activeMembers].sort((a,b)=>(a.lastName||"").localeCompare(b.lastName||"")).map(m=><option key={m.id} value={m.id}>{m.lastName}, {m.firstName}</option>)}
         </select>
       </div>
       {histMember==="all"?<div className="card" style={{overflow:"hidden"}}>
