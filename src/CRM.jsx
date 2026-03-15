@@ -202,7 +202,7 @@ const NAV = [
   {key:"reports",  icon:"📊",label:"Reports & Export"},
 ];
 
-function Sidebar({active,onNav}){
+function Sidebar({active,onNav,onLogout}){
   return <div style={{width:230,flexShrink:0,background:"linear-gradient(175deg,#0d2d5e 0%,#1B4F8A 100%)",display:"flex",flexDirection:"column",padding:"0 10px 20px",boxShadow:"4px 0 20px rgba(0,0,0,0.12)"}}>
     <div style={{padding:"24px 10px 20px",borderBottom:"1px solid rgba(255,255,255,0.1)",marginBottom:12}}>
       <div style={{fontFamily:"'Playfair Display',serif",color:"#fff",fontSize:16,fontWeight:800,lineHeight:1.3}}>Living Water<br/>Church In Christ</div>
@@ -1640,7 +1640,7 @@ function ReportsModule({members,giving,attendance,groups,events}){
 }
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
-export default function App(){
+export default function App({handleLogout}){
   const [members,setMembers]=useState(initialMembers);
   const [giving,setGiving]=useState(initialGiving);
   const [attendance,setAttendance]=useState(initialAttendance);
@@ -1794,7 +1794,7 @@ export default function App(){
     <FontLoader/>
     <div id="print-statement"></div>
     <div style={{display:"flex",height:"100vh",overflow:"hidden",background:"#f0f4f9"}}>
-      <Sidebar active={navPage} onNav={handleNav}/>
+      <Sidebar active={navPage} onNav={handleNav} onLogout={handleLogout}/>
       <div style={{flex:1,overflow:"auto",padding:"28px 32px"}}>{renderContent()}</div>
       {toast&&<div style={{position:"fixed",bottom:28,right:28,background:toast.color,color:"#fff",padding:"12px 22px",borderRadius:12,fontWeight:600,fontSize:14,boxShadow:"0 4px 20px rgba(0,0,0,0.2)",animation:"fadeIn 0.2s ease",zIndex:300}}>{toast.msg}</div>}
       {deleteTarget&&<ConfirmModal message={`Permanently remove ${deleteTarget.firstName} ${deleteTarget.lastName}? This cannot be undone.`} onConfirm={handleDeleteMember} onCancel={()=>setDeleteTarget(null)}/>}
