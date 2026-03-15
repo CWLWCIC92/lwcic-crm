@@ -235,7 +235,7 @@ function Dashboard({members,giving,attendance,groups,events,onNav}){
   const attRate=lastService?(lastService.present.length/members.filter(m=>m.status==="Member").length*100).toFixed(0):0;
   const upcoming=getUpcomingBirthdays(members,30);
   const missed=members.filter(m=>getMissedSundays(m.id,attendance));
-  const upcomingEvents=[...events].filter(e=>e.date>=todayStr()).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,4);
+  const upcomingEvents=[...events].filter(e=>e.date>=todayStr()).sort((a,b)=>(a.date||"").localeCompare(b.date||"")).slice(0,4);
 
   return <div className="fade-in">
     <div style={{marginBottom:28}}>
@@ -678,7 +678,7 @@ function CalendarModule({events,groups,onSaveEvent,onDeleteEvent}){
     setShowForm(false);setEditEvent(null);
   };
 
-  const upcomingList=[...events].filter(e=>e.date>=todayStr()).sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
+  const upcomingList=[...events].filter(e=>e.date>=todayStr()).sort((a,b)=>(a.date||"").localeCompare(b.date||"")||(a.time||"").localeCompare(b.time||""));
 
   const EVENT_COLORS=["#1B4F8A","#2E75B6","#2e7d32","#7B1FA2","#E65100","#880E4F","#f57f17","#c62828","#00897B"];
 
@@ -903,7 +903,7 @@ function GivingModule({members,giving,onAddGift,onDeleteGift}){
             const EIN="82-2734521"; // ← REPLACE with Living Water's actual EIN
             const rows=members.filter(m=>memberTotals[m.id]).sort((a,b)=>(a.lastName||"").localeCompare(b.lastName||"")).map(m=>{
               const d=memberTotals[m.id];
-              const giftRows=d.gifts.sort((a,b)=>a.date.localeCompare(b.date)).map(g=>`
+              const giftRows=d.gifts.sort((a,b)=>(a.date||"").localeCompare(b.date||"")).map(g=>`
                 <tr>
                   <td style="padding:6px 8px;border-bottom:1px solid #eee">${fmt(g.date)}</td>
                   <td style="padding:6px 8px;border-bottom:1px solid #eee">${g.category}</td>
@@ -991,7 +991,7 @@ function StatementRow({member,data,year}){
   const handlePrint=()=>{
     if(!data)return;
     const EIN="82-2734521"; // ← REPLACE with Living Water's actual EIN
-    const lines=data.gifts.sort((a,b)=>a.date.localeCompare(b.date))
+    const lines=data.gifts.sort((a,b)=>(a.date||"").localeCompare(b.date||""))
       .map(g=>`<tr>
         <td style="padding:7px 10px;border-bottom:1px solid #eee">${fmt(g.date)}</td>
         <td style="padding:7px 10px;border-bottom:1px solid #eee">${g.category}</td>
@@ -1169,7 +1169,7 @@ function AttendanceModule({members,attendance,onSaveService}){
 // ─── MEMBERS MODULE (Phase 1) ─────────────────────────────────────────────────
 function MemberList({members,onSelect,onAdd}){
   const [search,setSearch]=useState("");const[filterStatus,setFilterStatus]=useState("All");const[filterGroup,setFilterGroup]=useState("All");const[sortBy,setSortBy]=useState("lastName");
-  const filtered=members.filter(m=>{const q=search.toLowerCase();return(!q||`${m.firstName} ${m.lastName} ${m.email} ${m.phone}`.toLowerCase().includes(q))&&(filterStatus==="All"||m.status===filterStatus)&&(filterGroup==="All"||m.groups.includes(filterGroup));}).sort((a,b)=>sortBy==="lastName"?a.lastName.localeCompare(b.lastName):sortBy==="firstName"?(a.firstName||"").localeCompare(b.firstName||""):(b.joinDate||"").localeCompare(a.joinDate||""));
+  const filtered=members.filter(m=>{const q=search.toLowerCase();return(!q||`${m.firstName} ${m.lastName} ${m.email} ${m.phone}`.toLowerCase().includes(q))&&(filterStatus==="All"||m.status===filterStatus)&&(filterGroup==="All"||m.groups.includes(filterGroup));}).sort((a,b)=>sortBy==="lastName"?(a.lastName||"").localeCompare(b.lastName||""):sortBy==="firstName"?(a.firstName||"").localeCompare(b.firstName||""):(b.joinDate||"").localeCompare(a.joinDate||""));
   return <div className="fade-in">
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}><div><div style={{fontFamily:"'Playfair Display',serif",fontSize:24,fontWeight:800,color:"#0d2d5e"}}>People & Families</div><div style={{fontSize:13,color:"#64748b",marginTop:2}}>{members.length} total records</div></div><button className="btn-primary" onClick={onAdd}>+ Add Member</button></div>
     <div className="card" style={{padding:"14px 16px",marginBottom:16,display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
