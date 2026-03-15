@@ -221,6 +221,7 @@ function Sidebar({active,onNav,onLogout}){
     </nav>
     <div style={{padding:"14px 10px 0",borderTop:"1px solid rgba(255,255,255,0.1)"}}>
       <div style={{fontSize:11,color:"#6a8caf",lineHeight:1.5}}>McKees Rocks, PA<br/><span style={{color:"#4a7ab5"}}>Phase 3 — Active</span></div>
+      <button onClick={onLogout} style={{marginTop:16,width:"100%",padding:"8px",background:"rgba(255,255,255,0.1)",color:"#a8bcd4",border:"1px solid rgba(255,255,255,0.2)",borderRadius:6,fontSize:13,cursor:"pointer"}}>Sign Out</button>
     </div>
   </div>;
 }
