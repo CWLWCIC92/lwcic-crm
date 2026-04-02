@@ -1716,7 +1716,7 @@ if(mData?.length) setMembers(mData.map(normalize));
     setDeleteTarget(null);setView("list");setSelected(null);showToast("Member removed","#c62828");
   };
   const handleAddGift=async gift=>{
-    const {data}=await supabase.from("giving").insert(gift).select().single();
+    const mappedGift={member_id:gift.memberId,date:gift.date,amount:gift.amount,method:gift.method,category:gift.category,note:gift.note};const {data,error}=await supabase.from("giving").insert(mappedGift).select().single();if(error){console.error("INSERT GIVING ERROR:",JSON.stringify(error));alert("Save failed: "+error.message);return;}
     const ng=data||{...gift,id:nextGiftId};
     setGiving(gs=>[ng,...gs]);setNextGiftId(n=>n+1);showToast(`Gift of $${gift.amount} logged ✓`);
   };
