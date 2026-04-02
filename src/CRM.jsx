@@ -1703,7 +1703,7 @@ export default function App({handleLogout}){
       setMembers(ms=>ms.map(m=>m.id===selected.id?updated:m));
       setSelected(updated);setView("detail");showToast(`${form.firstName||form.first_name} ${form.lastName||form.last_name} updated ✓`);
     } else {
-      const {data,error}=await supabase.from("members").insert(form).select().single(); if(error){console.error("INSERT MEMBER ERROR:",JSON.stringify(error));alert("Save failed: "+error.message);return;}
+      const mapped={first_name:form.firstName,last_name:form.lastName,role:form.role,status:form.status,phone:form.phone,email:form.email,address:form.address,address2:form.address2,city:form.city,state:form.state,zip:form.zip,family:form.family,birthday:form.birthday||null,anniversary:form.anniversary||null,join_date:form.joinDate||null,visitor_source:form.visitorSource,saved:form.saved,saved_date:form.savedDate||null,baptized:form.baptized,baptism_date:form.baptismDate||null,membership_class:form.membershipClass,volunteer_roles:form.volunteerRoles,groups:form.groups,notes:form.notes,photo:form.photo};const {data,error}=await supabase.from("members").insert(mapped).select().single(); if(error){console.error("INSERT MEMBER ERROR:",JSON.stringify(error));alert("Save failed: "+error.message);return;}
       const nm=data||{...form,id:nextMemberId};
       setMembers(ms=>[...ms,nm]);setNextMemberId(n=>n+1);setSelected(nm);setView("detail");
       showToast(`${form.firstName||form.first_name} ${form.lastName||form.last_name} added ✓`);
