@@ -1703,7 +1703,7 @@ export default function App({handleLogout}){
       setMembers(ms=>ms.map(m=>m.id===selected.id?updated:m));
       setSelected(updated);setView("detail");showToast(`${form.firstName||form.first_name} ${form.lastName||form.last_name} updated ✓`);
     } else {
-      const {data}=await supabase.from("members").insert(form).select().single();
+      const {data,error}=await supabase.from("members").insert(form).select().single(); if(error){console.error("INSERT MEMBER ERROR:",JSON.stringify(error));alert("Save failed: "+error.message);return;}
       const nm=data||{...form,id:nextMemberId};
       setMembers(ms=>[...ms,nm]);setNextMemberId(n=>n+1);setSelected(nm);setView("detail");
       showToast(`${form.firstName||form.first_name} ${form.lastName||form.last_name} added ✓`);
