@@ -131,7 +131,7 @@ const ROLE_COLORS = {Pastor:"#1B4F8A","Co-Pastor":"#2E75B6",Deacon:"#4CAF50",Eld
 const AVATAR_COLORS = ["#1B4F8A","#2E75B6","#4CAF50","#7B1FA2","#00897B","#E65100","#880E4F","#37474F"];
 const METHOD_COLORS = {Cash:"#2e7d32",Check:"#1B4F8A","Cash App":"#00897B",Zelle:"#6a1b9a",Stripe:"#7c4dff"};
 
-const blankMember = () => ({firstName:"",lastName:"",role:"Member",status:"Member",phone:"",email:"",address:"",address2:"",city:"",state:"PA",zip:"",family:"",birthday:"",anniversary:"",joinDate:new Date().toISOString().split("T")[0],visitorSource:"Friend",saved:false,savedDate:"",baptized:false,baptismDate:"",membershipClass:false,volunteerRoles:[],groups:[],notes:"",photo:null});
+const blankMember = () => ({firstName:"",middleName:"",lastName:"",role:"Member",status:"Member",phone:"",email:"",address:"",address2:"",city:"",state:"PA",zip:"",family:"",birthday:"",anniversary:"",joinDate:new Date().toISOString().split("T")[0],visitorSource:"Friend",saved:false,savedDate:"",baptized:false,baptismDate:"",membershipClass:false,volunteerRoles:[],groups:[],notes:"",photo:null});
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmt     = d => {if(!d)return"—";const[y,m,dy]=d.split("-");return new Date(+y,+m-1,+dy).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});};
@@ -304,7 +304,7 @@ function GroupsModule({members,groups,onSaveGroup,onDeleteGroup,currentUser}){
   const [deleteTarget,setDeleteTarget]=useState(null);
   const [form,setForm]=useState(null);
 
-  const memberMap=useMemo(()=>Object.fromEntries(members.map(m=>[m.id,m])),[members]);
+  const memberMap=useMemo(()=>{const map={};members.forEach(m=>{map[m.id]=m;map[String(m.id)]=m;});return map;},[members]);
   const canManage=currentUser.role==="Pastor"||currentUser.role==="Co-Pastor";
 
   const blankGroup=()=>({name:"",description:"",leaderId:"",color:GROUP_COLORS[0],members:[]});
@@ -828,7 +828,7 @@ function GivingModule({members,giving,onAddGift,onDeleteGift}){
   const [gForm,setGForm]=useState({memberId:"",date:todayStr(),amount:"",method:"Cash",category:"Tithe",note:""});
   const [gErr,setGErr]=useState({});
   const memberMap=useMemo(()=>Object.fromEntries(members.map(m=>[m.id,m])),[members]);
-  const filtered=useMemo(()=>giving.filter(g=>(filterMember==="all"||g.memberId===Number(filterMember))&&(!filterMonth||g.date.startsWith(filterMonth))&&(filterCat==="all"||g.category===filterCat)).sort((a,b)=>(b.date||"").localeCompare(a.date||"")),[giving,filterMember,filterMonth,filterCat]);
+  const filtered=useMemo(()=>giving.filter(g=>(filterMember==="all"||(g.member_id||g.memberId)===Number(filterMember))&&(!filterMonth||( g.date||"").startsWith(filterMonth))&&(filterCat==="all"||g.category===filterCat)).sort((a,b)=>(b.date||"").localeCompare(a.date||"")),[giving,filterMember,filterMonth,filterCat]);
   const filteredTotal=filtered.reduce((s,g)=>s+g.amount,0);
   const td=new Date();
   const thisMonth=`${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,"0")}`;
@@ -836,7 +836,7 @@ function GivingModule({members,giving,onAddGift,onDeleteGift}){
   const weekly=giving.filter(g=>isoWeek(g.date)===weekStart).reduce((s,g)=>s+g.amount,0);
   const monthly=giving.filter(g=>g.date.startsWith(thisMonth)).reduce((s,g)=>s+g.amount,0);
   const yearly=giving.filter(g=>g.date.startsWith(`${td.getFullYear()}`)).reduce((s,g)=>s+g.amount,0);
-  const memberTotals=useMemo(()=>{const yr=td.getFullYear();const map={};giving.filter(g=>g.date.startsWith(`${yr}`)).forEach(g=>{if(!map[g.memberId])map[g.memberId]={total:0,gifts:[]};map[g.memberId].total+=g.amount;map[g.memberId].gifts.push(g);});return map;},[giving]);
+  const memberTotals=useMemo(()=>{const yr=td.getFullYear();const map={};giving.filter(g=>(g.date||"").startsWith(`${yr}`)).forEach(g=>{const k=g.member_id||g.memberId;if(!map[k])map[k]={total:0,gifts:[]};map[k].total+=g.amount;map[k].gifts.push(g);});return map;},[giving]);
   const handleAddGift=()=>{const e={};if(!gForm.memberId)e.memberId="Required";if(!gForm.amount||isNaN(gForm.amount)||+gForm.amount<=0)e.amount="Enter valid amount";if(!gForm.date)e.date="Required";if(Object.keys(e).length){setGErr(e);return;}onAddGift({...gForm,memberId:Number(gForm.memberId),amount:parseFloat(gForm.amount)});setGForm({memberId:"",date:todayStr(),amount:"",method:"Cash",category:"Tithe",note:""});setGErr({});setShowForm(false);};
   return <div className="fade-in">
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
@@ -868,7 +868,7 @@ function GivingModule({members,giving,onAddGift,onDeleteGift}){
         <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><button className="btn-ghost" onClick={()=>{setShowForm(false);setGErr({});}}>Cancel</button><button className="btn-primary" onClick={handleAddGift}>💾 Save Gift</button></div>
       </div>
     </div>}
-    {deleteTarget&&<ConfirmModal message={`Remove the ${dollar(deleteTarget.amount)} gift from ${memberMap[deleteTarget.memberId]?.firstName} ${memberMap[deleteTarget.memberId]?.lastName}?`} onConfirm={()=>{onDeleteGift(deleteTarget.id);setDeleteTarget(null);}} onCancel={()=>setDeleteTarget(null)}/>}
+    {deleteTarget&&<ConfirmModal message={`Remove the ${dollar(deleteTarget.amount)} gift from ${(memberMap[deleteTarget.member_id||deleteTarget.memberId])?.firstName} ${(memberMap[deleteTarget.member_id||deleteTarget.memberId])?.lastName}?`} onConfirm={()=>{onDeleteGift(deleteTarget.id);setDeleteTarget(null);}} onCancel={()=>setDeleteTarget(null)}/>}
     {subView==="overview"&&<div className="slide-in">
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:20}}>
         {[["This Week",dollar(weekly),"#1B4F8A"],["This Month",dollar(monthly),"#2e7d32"],["This Year",dollar(yearly),"#00897B"]].map(([label,val,color])=>(
@@ -889,7 +889,7 @@ function GivingModule({members,giving,onAddGift,onDeleteGift}){
       </div>
       <div className="card" style={{overflow:"hidden"}}>
         {filtered.length===0?<div style={{padding:40,textAlign:"center",color:"#94a3b8"}}><div style={{fontSize:32,marginBottom:8}}>💸</div>No gifts match filters.</div>:
-          filtered.map(g=>{const m=memberMap[g.memberId];return <div key={g.id} className="giving-row"><div style={{display:"flex",alignItems:"center",gap:12,flex:1}}>{m?<Avatar member={m} size={36}/>:<div style={{width:36,height:36,borderRadius:"50%",background:"#e2e8f0"}}/>}<div style={{flex:1}}><div style={{fontSize:14,fontWeight:600,color:"#1e293b"}}>{m?`${m.firstName} ${m.lastName}`:"Unknown"}</div><div style={{fontSize:12,color:"#64748b"}}>{fmt(g.date)} · {g.category}{g.note?` · ${g.note}`:""}</div></div></div><span style={{fontSize:11,fontWeight:600,color:METHOD_COLORS[g.method]||"#546E7A",background:"#f1f5f9",padding:"3px 10px",borderRadius:12,marginRight:8}}>{g.method}</span><div style={{fontSize:16,fontWeight:800,color:"#2e7d32",minWidth:70,textAlign:"right"}}>{dollar(g.amount)}</div><button onClick={()=>setDeleteTarget(g)} style={{background:"none",border:"none",cursor:"pointer",color:"#ef9a9a",fontSize:16,padding:"0 4px",marginLeft:8}}>🗑</button></div>;})}
+          filtered.map(g=>{const m=memberMap[g.member_id]||memberMap[g.memberId];return <div key={g.id} className="giving-row"><div style={{display:"flex",alignItems:"center",gap:12,flex:1}}>{m?<Avatar member={m} size={36}/>:<div style={{width:36,height:36,borderRadius:"50%",background:"#e2e8f0"}}/>}<div style={{flex:1}}><div style={{fontSize:14,fontWeight:600,color:"#1e293b"}}>{m?`${m.firstName} ${m.lastName}`:"Unknown"}</div><div style={{fontSize:12,color:"#64748b"}}>{fmt(g.date)} · {g.category}{g.note?` · ${g.note}`:""}</div></div></div><span style={{fontSize:11,fontWeight:600,color:METHOD_COLORS[g.method]||"#546E7A",background:"#f1f5f9",padding:"3px 10px",borderRadius:12,marginRight:8}}>{g.method}</span><div style={{fontSize:16,fontWeight:800,color:"#2e7d32",minWidth:70,textAlign:"right"}}>{dollar(g.amount)}</div><button onClick={()=>setDeleteTarget(g)} style={{background:"none",border:"none",cursor:"pointer",color:"#ef9a9a",fontSize:16,padding:"0 4px",marginLeft:8}}>🗑</button></div>;})}
       </div>
     </div>}
     {subView==="statements"&&<div className="slide-in">
@@ -909,16 +909,20 @@ function GivingModule({members,giving,onAddGift,onDeleteGift}){
                   <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">$${g.amount.toFixed(2)}</td>
                 </tr>`).join("");
               return `
-                <div style="page-break-inside:avoid;margin-bottom:48px;padding-bottom:32px;border-bottom:2px solid #0d2d5e;">
+                <div style="page-break-after:always;break-after:page;margin-bottom:0;padding-bottom:32px;">
                   <h2 style="font-size:16px;text-align:center;color:#0d2d5e;margin:0 0 12px;">
                     CHARITABLE CONTRIBUTION STATEMENT — ${yr}
                   </h2>
-                  <table style="width:100%;font-size:12px;margin-bottom:12px;">
-                    <tr>
-                      <td><strong>Donor:</strong> ${m.firstName} ${m.lastName}${m.address?"<br/>"+m.address:""}</td>
-                      <td style="text-align:right"><strong>Date:</strong> ${new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}</td>
-                    </tr>
-                  </table>
+                  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+                    <div style="margin-top:8px;padding-left:4px;min-height:72px;">
+                      <div style="font-size:13px;font-weight:bold;color:#1a1a1a;">${m.firstName} ${m.lastName}</div>
+                      ${m.address?`<div style="font-size:12px;color:#333;">${m.address}</div>`:""}
+                      ${m.city?`<div style="font-size:12px;color:#333;">${m.city}, ${m.state} ${m.zip}</div>`:""}
+                    </div>
+                    <div style="text-align:right;font-size:12px;">
+                      <strong>Date:</strong> ${new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}
+                    </div>
+                  </div>
                   <table style="width:100%;border-collapse:collapse;font-size:12px;">
                     <thead><tr style="background:#0d2d5e;color:#fff;">
                       <th style="padding:7px 8px;text-align:left">Date</th>
@@ -972,7 +976,7 @@ function GivingModule({members,giving,onAddGift,onDeleteGift}){
             <div style={{flex:1}}>Member</div><div style={{width:80,textAlign:"center"}}>Gifts</div><div style={{width:120,textAlign:"right"}}>Total Given</div><div style={{width:110,textAlign:"right"}}>Statement</div>
           </div>
           {[...members].sort((a,b)=>(a.lastName||"").localeCompare(b.lastName||"")).map(m=>{
-            const data=memberTotals[m.id];
+            const data=memberTotals[m.id]||memberTotals[String(m.id)];
             const [open,setOpen]=[false,()=>{}];
             return <StatementRow key={m.id} member={m} data={data} year={td.getFullYear()}/>;
           })}
@@ -1016,11 +1020,11 @@ function StatementRow({member,data,year}){
         <!-- Donor Info -->
         <table style="width:100%;margin-bottom:20px;font-size:13px;">
           <tr>
-            <td style="width:50%;vertical-align:top;">
-              <strong>Prepared for:</strong><br/>
-              ${member.firstName} ${member.lastName}<br/>
-              ${member.address?member.address+"<br/>":""}
-              ${member.city?member.city+", "+member.state+" "+member.zip:""}
+            <td style="width:55%;vertical-align:top;padding-top:18px;padding-left:8px;">
+              <div style="font-size:14px;font-weight:bold;color:#1a1a1a;">${member.firstName}${member.middleName?" "+member.middleName:""} ${member.lastName}</div>
+              ${member.address?'<div style="font-size:13px;margin-top:2px;">'+member.address+'</div>':""}
+              ${member.address2?'<div style="font-size:13px;">'+member.address2+'</div>':""}
+              ${member.city?'<div style="font-size:13px;">'+member.city+", "+member.state+" "+member.zip+'</div>':""}
             </td>
             <td style="width:50%;vertical-align:top;text-align:right;">
               <strong>Statement Date:</strong> ${new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}<br/>
@@ -1189,10 +1193,10 @@ function MemberDetail({member,onEdit,onDelete,onBack}){
   const tabLabels={info:"📋 Info",spiritual:"✝️ Spiritual",groups:"⛪ Groups",notes:"📝 Notes"};
   return <div className="fade-in" style={{maxWidth:720,margin:"0 auto"}}>
     <button className="btn-ghost" onClick={onBack} style={{marginBottom:16,padding:"7px 14px",fontSize:13}}>← Back to Members</button>
-    <div className="card" style={{padding:28,marginBottom:14}}><div style={{display:"flex",alignItems:"center",gap:20}}><Avatar member={member} size={72}/><div style={{flex:1}}><div style={{fontFamily:"'Playfair Display',serif",fontSize:24,fontWeight:800,color:"#0d2d5e"}}>{member.firstName} {member.lastName}</div><div style={{display:"flex",gap:10,alignItems:"center",marginTop:6,flexWrap:"wrap"}}><RolePip role={member.role}/><StatusBadge status={member.status}/>{member.family&&<span style={{fontSize:12,color:"#64748b"}}>👨‍👩‍👧 {member.family} Family</span>}</div></div><div style={{display:"flex",gap:8}}><button className="btn-primary" onClick={onEdit}>✏️ Edit</button><button className="btn-danger" onClick={onDelete}>🗑</button></div></div></div>
+    <div className="card" style={{padding:28,marginBottom:14}}><div style={{display:"flex",alignItems:"center",gap:20}}><Avatar member={member} size={72}/><div style={{flex:1}}><div style={{fontFamily:"'Playfair Display',serif",fontSize:24,fontWeight:800,color:"#0d2d5e"}}>{member.firstName}{member.middleName?" "+member.middleName:""} {member.lastName}</div><div style={{display:"flex",gap:10,alignItems:"center",marginTop:6,flexWrap:"wrap"}}><RolePip role={member.role}/><StatusBadge status={member.status}/>{member.family&&<span style={{fontSize:12,color:"#64748b"}}>👨‍👩‍👧 {member.family} Family</span>}</div></div><div style={{display:"flex",gap:8}}><button className="btn-primary" onClick={onEdit}>✏️ Edit</button><button className="btn-danger" onClick={onDelete}>🗑</button></div></div></div>
     <div style={{display:"flex",gap:4,marginBottom:14,background:"#fff",borderRadius:12,padding:5,boxShadow:"0 2px 8px rgba(0,0,0,0.06)"}}>{tabs.map(t=><button key={t} className="tab-btn" onClick={()=>setTab(t)} style={{background:tab===t?"#1B4F8A":"transparent",color:tab===t?"#fff":"#64748b"}}>{tabLabels[t]}</button>)}</div>
     <div className="card" style={{padding:28}}>
-      {tab==="info"&&<div className="slide-in" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:22}}>{[["Phone",member.phone],["Email",member.email],["Address",member.address],["Address 2",member.address2],["City",member.city],["State / ZIP",member.state&&member.zip?`${member.state} ${member.zip}`:""],["Birthday",fmt(member.birthday)],["Anniversary",fmt(member.anniversary)],["Join Date",fmt(member.joinDate)],["Found Us Via",member.visitorSource]].map(([l,v])=><FieldBlock key={l} label={l} value={v}/>)}</div>}
+      {tab==="info"&&<div className="slide-in" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:22}}>{[["Phone",member.phone],["Email",member.email],["Middle Name",member.middleName||""],["Address",member.address],["Address 2",member.address2],["City",member.city],["State / ZIP",member.state&&member.zip?`${member.state} ${member.zip}`:""],["Birthday",fmt(member.birthday)],["Anniversary",fmt(member.anniversary)],["Join Date",fmt(member.joinDate)],["Found Us Via",member.visitorSource]].map(([l,v])=><FieldBlock key={l} label={l} value={v}/>)}</div>}
       {tab==="spiritual"&&<div className="slide-in" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:22}}>{[["Saved?",member.saved?"✅ Yes":"No"],["Saved Date",fmt(member.savedDate)],["Baptized?",member.baptized?"✅ Yes":"No"],["Baptism Date",fmt(member.baptismDate)],["Membership Class",member.membershipClass?"✅ Completed":"Not yet"],["Volunteer Roles",member.volunteerRoles.join(", ")||"None"]].map(([l,v])=><FieldBlock key={l} label={l} value={v}/>)}</div>}
       {tab==="groups"&&<div className="slide-in">{member.groups.length?<div style={{display:"flex",flexWrap:"wrap",gap:8}}>{member.groups.map(g=><span key={g} style={{background:"#e8f0fe",color:"#1B4F8A",border:"1px solid #a8c4f0",borderRadius:20,padding:"7px 18px",fontSize:13,fontWeight:600}}>{g}</span>)}</div>:<div style={{color:"#94a3b8",fontSize:14}}>Not in any groups yet.</div>}</div>}
       {tab==="notes"&&<div className="slide-in"><div style={{fontSize:15,color:"#334155",lineHeight:1.75,whiteSpace:"pre-wrap"}}>{member.notes||<span style={{color:"#94a3b8"}}>No notes yet.</span>}</div></div>}
@@ -1215,9 +1219,10 @@ function MemberField({label,fk,type,options,req,value,onChange,error}){
 function MemberForm({initial,onSave,onCancel,isEdit}){
   const [form,setForm]=useState(initial||blankMember());
   const [errors,setErrors]=useState({});
+  const [saving,setSaving]=useState(false);
   const set=(key,val)=>setForm(f=>({...f,[key]:val}));
   const validate=()=>{const e={};if(!form.firstName.trim())e.firstName="Required";if(!form.lastName.trim())e.lastName="Required";return e;};
-  const handleSave=()=>{const e=validate();if(Object.keys(e).length){setErrors(e);return;}onSave(form);};
+  const handleSave=async()=>{const e=validate();if(Object.keys(e).length){setErrors(e);return;}setSaving(true);onSave(form);};
   const toggleGroup=g=>set("groups",form.groups.includes(g)?form.groups.filter(x=>x!==g):[...form.groups,g]);
   return <div className="fade-in" style={{maxWidth:720,margin:"0 auto"}}>
     <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:800,color:"#0d2d5e",marginBottom:20}}>{isEdit?"✏️ Edit Member":"➕ Add New Member"}</div>
@@ -1226,6 +1231,7 @@ function MemberForm({initial,onSave,onCancel,isEdit}){
       <SectionHeader emoji="👤" title="Personal Information"/>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
         <MemberField label="First Name" fk="firstName" req value={form.firstName} onChange={set} error={errors.firstName}/>
+        <MemberField label="Middle Name" fk="middleName" value={form.middleName||""} onChange={set}/>
         <MemberField label="Last Name" fk="lastName" req value={form.lastName} onChange={set} error={errors.lastName}/>
         <MemberField label="Role" fk="role" type="select" options={ROLES} value={form.role} onChange={set}/>
         <MemberField label="Status" fk="status" type="select" options={STATUSES} value={form.status} onChange={set}/>
@@ -1268,7 +1274,7 @@ function MemberForm({initial,onSave,onCancel,isEdit}){
     </div>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
       <button className="btn-ghost" onClick={onCancel}>Cancel</button>
-      <button className="btn-primary" onClick={handleSave}>{isEdit?"💾 Save Changes":"➕ Add Member"}</button>
+      <button className="btn-primary" onClick={handleSave} disabled={saving} style={{opacity:saving?0.6:1}}>{saving?"⏳ Saving…":isEdit?"💾 Save Changes":"➕ Add Member"}</button>
     </div>
   </div>;
 }
@@ -1679,7 +1685,7 @@ export default function App({handleLogout}){
           supabase.from("events").select("*").order("date"),
           supabase.from("messages").select("*").order("date",{ascending:false}),
         ]);
-        const normalize = r => ({...r, firstName:r.first_name, lastName:r.last_name, joinDate:r.join_date, visitorSource:r.visitor_source, savedDate:r.saved_date, baptismDate:r.baptism_date, membershipClass:r.membership_class, volunteerRoles:r.volunteer_roles});
+        const normalize = r => ({...r, firstName:r.first_name||r.firstName||"", middleName:r.middle_name||r.middleName||"", lastName:r.last_name||r.lastName||"", joinDate:r.join_date||r.joinDate||"", visitorSource:r.visitor_source||r.visitorSource||"Friend", savedDate:r.saved_date||r.savedDate||"", baptismDate:r.baptism_date||r.baptismDate||"", membershipClass:r.membership_class||r.membershipClass||false, volunteerRoles:r.volunteer_roles||r.volunteerRoles||[]});
 if(mData?.length) setMembers(mData.map(normalize));
         if(gData?.length) setGiving(gData);
         if(aData?.length) setAttendance(aData);
@@ -1700,13 +1706,13 @@ if(mData?.length) setMembers(mData.map(normalize));
   const handleSaveMember=async form=>{
     if(view==="edit"&&selected){
       const {data}=await supabase.from("members").update(form).eq("id",selected.id).select().single();
-      const updated=data||{...form,id:selected.id};
+      const updated=data?normalize(data):{...form,id:selected.id};
       setMembers(ms=>ms.map(m=>m.id===selected.id?updated:m));
       setSelected(updated);setView("detail");showToast(`${form.firstName||form.first_name} ${form.lastName||form.last_name} updated ✓`);
     } else {
-      const mapped={first_name:form.firstName,last_name:form.lastName,role:form.role,status:form.status,phone:form.phone,email:form.email,address:form.address,address2:form.address2,city:form.city,state:form.state,zip:form.zip,family:form.family,birthday:form.birthday||null,anniversary:form.anniversary||null,join_date:form.joinDate||null,visitor_source:form.visitorSource,saved:form.saved,saved_date:form.savedDate||null,baptized:form.baptized,baptism_date:form.baptismDate||null,membership_class:form.membershipClass,volunteer_roles:form.volunteerRoles,groups:form.groups,notes:form.notes,photo:form.photo};const {data,error}=await supabase.from("members").insert(mapped).select().single(); if(error){console.error("INSERT MEMBER ERROR:",JSON.stringify(error));alert("Save failed: "+error.message);return;}
-      const nm=data||{...form,id:nextMemberId};
-      setMembers(ms=>[...ms,nm]);setNextMemberId(n=>n+1);setSelected(nm);setView("detail");
+      const mapped={first_name:form.firstName,middle_name:form.middleName||"",last_name:form.lastName,role:form.role,status:form.status,phone:form.phone,email:form.email,address:form.address,address2:form.address2,city:form.city,state:form.state,zip:form.zip,family:form.family,birthday:form.birthday||null,anniversary:form.anniversary||null,join_date:form.joinDate||null,visitor_source:form.visitorSource,saved:form.saved,saved_date:form.savedDate||null,baptized:form.baptized,baptism_date:form.baptismDate||null,membership_class:form.membershipClass,volunteer_roles:form.volunteerRoles,groups:form.groups,notes:form.notes,photo:form.photo};const {data,error}=await supabase.from("members").insert(mapped).select().single(); if(error){console.error("INSERT MEMBER ERROR:",JSON.stringify(error));alert("Save failed: "+error.message);return;}
+      const nm=data?normalize(data):{...form,id:nextMemberId};
+      setMembers(ms=>[...ms,nm]);setNextMemberId(n=>n+1);setSelected(nm);setView("detail");return Promise.resolve();
       showToast(`${form.firstName||form.first_name} ${form.lastName||form.last_name} added ✓`);
     }
   };
