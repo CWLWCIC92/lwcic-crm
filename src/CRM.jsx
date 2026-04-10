@@ -1219,10 +1219,9 @@ function MemberField({label,fk,type,options,req,value,onChange,error}){
 function MemberForm({initial,onSave,onCancel,isEdit}){
   const [form,setForm]=useState(initial||blankMember());
   const [errors,setErrors]=useState({});
-  const [saving,setSaving]=useState(false);
   const set=(key,val)=>setForm(f=>({...f,[key]:val}));
   const validate=()=>{const e={};if(!form.firstName.trim())e.firstName="Required";if(!form.lastName.trim())e.lastName="Required";return e;};
-  const handleSave=async()=>{const e=validate();if(Object.keys(e).length){setErrors(e);return;}setSaving(true);onSave(form);};
+  const handleSave=()=>{const e=validate();if(Object.keys(e).length){setErrors(e);return;}onSave(form);};
   const toggleGroup=g=>set("groups",form.groups.includes(g)?form.groups.filter(x=>x!==g):[...form.groups,g]);
   return <div className="fade-in" style={{maxWidth:720,margin:"0 auto"}}>
     <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:800,color:"#0d2d5e",marginBottom:20}}>{isEdit?"✏️ Edit Member":"➕ Add New Member"}</div>
@@ -1274,7 +1273,7 @@ function MemberForm({initial,onSave,onCancel,isEdit}){
     </div>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
       <button className="btn-ghost" onClick={onCancel}>Cancel</button>
-      <button className="btn-primary" onClick={handleSave} disabled={saving} style={{opacity:saving?0.6:1}}>{saving?"⏳ Saving…":isEdit?"💾 Save Changes":"➕ Add Member"}</button>
+      <button className="btn-primary" onClick={handleSave} >{isEdit?"💾 Save Changes":"➕ Add Member"}</button>
     </div>
   </div>;
 }
@@ -1662,6 +1661,9 @@ export default function App({handleLogout}){
   const [nextEventId,setNextEventId]=useState(initialEvents.length+1);
   const [toast,setToast]=useState(null);
   const [dbLoading,setDbLoading]=useState(true);
+
+  // Normalize Supabase snake_case to camelCase
+  const normalize=r=>({...r,firstName:r.first_name||r.firstName||"",middleName:r.middle_name||r.middleName||"",lastName:r.last_name||r.lastName||"",joinDate:r.join_date||r.joinDate||"",visitorSource:r.visitor_source||r.visitorSource||"Friend",savedDate:r.saved_date||r.savedDate||"",baptismDate:r.baptism_date||r.baptismDate||"",membershipClass:r.membership_class||r.membershipClass||false,volunteerRoles:r.volunteer_roles||r.volunteerRoles||[]});
 
   // Current user (Pastor Baldwin for now)
   const currentUser=members[0];
