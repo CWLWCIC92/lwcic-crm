@@ -1681,7 +1681,7 @@ export default function App({handleLogout}){
         ]);
         const normalize = r => ({...r, firstName:r.first_name, lastName:r.last_name, joinDate:r.join_date, visitorSource:r.visitor_source, savedDate:r.saved_date, baptismDate:r.baptism_date, membershipClass:r.membership_class, volunteerRoles:r.volunteer_roles});
 if(mData?.length) setMembers(mData.map(normalize));
-        if(gData?.length) setGiving(gData);
+        if(gData?.length) setGiving(gData.map(g => ({...g, memberId: g.member_id})));
         if(aData?.length) setAttendance(aData);
         if(grData?.length) setGroups(grData);
         if(eData?.length) setEvents(eData);
