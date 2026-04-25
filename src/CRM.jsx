@@ -131,7 +131,7 @@ const ROLE_COLORS = {Pastor:"#1B4F8A","Co-Pastor":"#2E75B6",Deacon:"#4CAF50",Eld
 const AVATAR_COLORS = ["#1B4F8A","#2E75B6","#4CAF50","#7B1FA2","#00897B","#E65100","#880E4F","#37474F"];
 const METHOD_COLORS = {Cash:"#2e7d32",Check:"#1B4F8A","Cash App":"#00897B",Zelle:"#6a1b9a",Stripe:"#7c4dff"};
 
-const blankMember = () => ({firstName:"",middleName:"",lastName:"",role:"Member",status:"Member",phone:"",email:"",address:"",address2:"",city:"",state:"PA",zip:"",family:"",birthday:"",anniversary:"",joinDate:new Date().toISOString().split("T")[0],visitorSource:"Friend",saved:false,savedDate:"",baptized:false,baptismDate:"",membershipClass:false,volunteerRoles:[],groups:[],notes:"",photo:null});
+const blankMember = () => ({firstName:"",middleName:"",lastName:"",role:"Member",status:"Member",phone:"",email:"",address:"",address2:"",city:"",state:"PA",zip:"",family:"",birthday:"",anniversary:"",joinDate:new Date().toISOString().split("T")[0],visitorSource:"Friend",saved:false,savedDate:"",baptized:false,baptismDate:"",membershipClass:false,volunteerRoles:[],groups:[],notes:"",photo:null,smsConsentGiven:false,smsConsentGivenAt:null,emailConsentGiven:false,emailConsentGivenAt:null,consentSource:"",consentDocumentUrl:""});
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmt     = d => {if(!d)return"—";const[y,m,dy]=d.split("-");return new Date(+y,+m-1,+dy).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});};
@@ -1271,6 +1271,35 @@ function MemberForm({initial,onSave,onCancel,isEdit}){
       <SectionHeader emoji="📝" title="Pastor's Notes"/>
       <textarea value={form.notes} onChange={e=>set("notes",e.target.value)} rows={4} placeholder="Private notes about this member…" className="field-input" style={{resize:"vertical"}}/>
     </div>
+    {/* Communication Consent */}
+    <div className="card" style={{padding:26,marginBottom:14}}>
+      <SectionHeader emoji="📋" title="Communication Consent"/>
+      <div style={{fontSize:12,color:"#64748b",marginBottom:14,lineHeight:1.5}}>
+        Check the box only if the member has signed a Contact Card or otherwise given explicit consent. Date is auto-stamped on save.
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:14}}>
+        <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+          <input type="checkbox" checked={!!form.smsConsentGiven} onChange={e=>set("smsConsentGiven",e.target.checked)} style={{width:16,height:16,accentColor:"#1B4F8A"}}/>
+          <span style={{fontSize:14,color:"#334155",fontWeight:500}}>SMS / Text Consent</span>
+        </label>
+        <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+          <input type="checkbox" checked={!!form.emailConsentGiven} onChange={e=>set("emailConsentGiven",e.target.checked)} style={{width:16,height:16,accentColor:"#1B4F8A"}}/>
+          <span style={{fontSize:14,color:"#334155",fontWeight:500}}>Email Consent</span>
+        </label>
+      </div>
+      {(form.smsConsentGiven||form.emailConsentGiven)&&(
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+          <MemberField label="Consent Source" fk="consentSource" type="select" options={["","Contact Card","Verbal","Online Form","Email"]} value={form.consentSource||""} onChange={set}/>
+          <div></div>
+        </div>
+      )}
+      {initial&&(form.smsConsentGivenAt||form.emailConsentGivenAt)&&(
+        <div style={{fontSize:11,color:"#94a3b8",marginTop:10,paddingTop:10,borderTop:"1px solid #f0f4f9"}}>
+          {form.smsConsentGivenAt&&<div>📱 SMS consent recorded: {new Date(form.smsConsentGivenAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>}
+          {form.emailConsentGivenAt&&<div>📧 Email consent recorded: {new Date(form.emailConsentGivenAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>}
+        </div>
+      )}
+    </div>
     <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
       <button className="btn-ghost" onClick={onCancel}>Cancel</button>
       <button className="btn-primary" onClick={handleSave} >{isEdit?"💾 Save Changes":"➕ Add Member"}</button>
@@ -1663,7 +1692,7 @@ export default function App({handleLogout}){
   const [dbLoading,setDbLoading]=useState(true);
 
   // Normalize Supabase snake_case to camelCase
-  const normalize=r=>({...r,firstName:r.first_name||r.firstName||"",middleName:r.middle_name||r.middleName||"",lastName:r.last_name||r.lastName||"",joinDate:r.join_date||r.joinDate||"",visitorSource:r.visitor_source||r.visitorSource||"Friend",savedDate:r.saved_date||r.savedDate||"",baptismDate:r.baptism_date||r.baptismDate||"",membershipClass:r.membership_class||r.membershipClass||false,volunteerRoles:r.volunteer_roles||r.volunteerRoles||[]});
+  const normalize=r=>({...r,firstName:r.first_name||r.firstName||"",middleName:r.middle_name||r.middleName||"",lastName:r.last_name||r.lastName||"",joinDate:r.join_date||r.joinDate||"",visitorSource:r.visitor_source||r.visitorSource||"Friend",savedDate:r.saved_date||r.savedDate||"",baptismDate:r.baptism_date||r.baptismDate||"",membershipClass:r.membership_class||r.membershipClass||false,volunteerRoles:r.volunteer_roles||r.volunteerRoles||[],smsConsentGiven:r.sms_consent_given||r.smsConsentGiven||false,smsConsentGivenAt:r.sms_consent_given_at||r.smsConsentGivenAt||null,emailConsentGiven:r.email_consent_given||r.emailConsentGiven||false,emailConsentGivenAt:r.email_consent_given_at||r.emailConsentGivenAt||null,consentSource:r.consent_source||r.consentSource||"",consentDocumentUrl:r.consent_document_url||r.consentDocumentUrl||""});
 
   // Current user (Pastor Baldwin for now)
   const currentUser=members[0];
@@ -1687,7 +1716,7 @@ export default function App({handleLogout}){
           supabase.from("events").select("*").order("date"),
           supabase.from("messages").select("*").order("date",{ascending:false}),
         ]);
-        const normalize = r => ({...r, firstName:r.first_name||r.firstName||"", middleName:r.middle_name||r.middleName||"", lastName:r.last_name||r.lastName||"", joinDate:r.join_date||r.joinDate||"", visitorSource:r.visitor_source||r.visitorSource||"Friend", savedDate:r.saved_date||r.savedDate||"", baptismDate:r.baptism_date||r.baptismDate||"", membershipClass:r.membership_class||r.membershipClass||false, volunteerRoles:r.volunteer_roles||r.volunteerRoles||[]});
+        const normalize = r => ({...r, firstName:r.first_name||r.firstName||"", middleName:r.middle_name||r.middleName||"", lastName:r.last_name||r.lastName||"", joinDate:r.join_date||r.joinDate||"", visitorSource:r.visitor_source||r.visitorSource||"Friend", savedDate:r.saved_date||r.savedDate||"", baptismDate:r.baptism_date||r.baptismDate||"", membershipClass:r.membership_class||r.membershipClass||false, volunteerRoles:r.volunteer_roles||r.volunteerRoles||[],smsConsentGiven:r.sms_consent_given||r.smsConsentGiven||false,smsConsentGivenAt:r.sms_consent_given_at||r.smsConsentGivenAt||null,emailConsentGiven:r.email_consent_given||r.emailConsentGiven||false,emailConsentGivenAt:r.email_consent_given_at||r.emailConsentGivenAt||null,consentSource:r.consent_source||r.consentSource||"",consentDocumentUrl:r.consent_document_url||r.consentDocumentUrl||""});
 if(mData?.length) setMembers(mData.map(normalize));
         if(gData?.length) setGiving(gData.map(g => ({...g, memberId: g.member_id})));
         if(aData?.length) setAttendance(aData);
@@ -1705,14 +1734,38 @@ if(mData?.length) setMembers(mData.map(normalize));
   const handleSelect=m=>{setSelected(m);setView("detail");};
   const handleBack=()=>{setView("list");setSelected(null);};
 
+  const buildMemberMapped=(form,existing)=>{
+    const now=new Date().toISOString();
+    const wasSmsConsent=existing?.smsConsentGiven===true;
+    const wasEmailConsent=existing?.emailConsentGiven===true;
+    const smsStamp=form.smsConsentGiven?(wasSmsConsent?(existing.smsConsentGivenAt||now):now):null;
+    const emailStamp=form.emailConsentGiven?(wasEmailConsent?(existing.emailConsentGivenAt||now):now):null;
+    return {
+      first_name:form.firstName,middle_name:form.middleName||"",last_name:form.lastName,
+      role:form.role,status:form.status,phone:form.phone,email:form.email,
+      address:form.address,address2:form.address2,city:form.city,state:form.state,zip:form.zip,
+      family:form.family,birthday:form.birthday||null,anniversary:form.anniversary||null,
+      join_date:form.joinDate||null,visitor_source:form.visitorSource,
+      saved:form.saved,saved_date:form.savedDate||null,
+      baptized:form.baptized,baptism_date:form.baptismDate||null,
+      membership_class:form.membershipClass,volunteer_roles:form.volunteerRoles,
+      groups:form.groups,notes:form.notes,photo:form.photo,
+      sms_consent_given:!!form.smsConsentGiven,
+      sms_consent_given_at:smsStamp,
+      email_consent_given:!!form.emailConsentGiven,
+      email_consent_given_at:emailStamp,
+      consent_source:form.consentSource||null,
+      consent_document_url:form.consentDocumentUrl||null
+    };
+  };
   const handleSaveMember=async form=>{
     if(view==="edit"&&selected){
-      const {data}=await supabase.from("members").update(form).eq("id",selected.id).select().single();
+      const mappedEdit=buildMemberMapped(form,selected);const {data}=await supabase.from("members").update(mappedEdit).eq("id",selected.id).select().single();
       const updated=data?normalize(data):{...form,id:selected.id};
       setMembers(ms=>ms.map(m=>m.id===selected.id?updated:m));
       setSelected(updated);setView("detail");showToast(`${form.firstName||form.first_name} ${form.lastName||form.last_name} updated ✓`);
     } else {
-      const mapped={first_name:form.firstName,middle_name:form.middleName||"",last_name:form.lastName,role:form.role,status:form.status,phone:form.phone,email:form.email,address:form.address,address2:form.address2,city:form.city,state:form.state,zip:form.zip,family:form.family,birthday:form.birthday||null,anniversary:form.anniversary||null,join_date:form.joinDate||null,visitor_source:form.visitorSource,saved:form.saved,saved_date:form.savedDate||null,baptized:form.baptized,baptism_date:form.baptismDate||null,membership_class:form.membershipClass,volunteer_roles:form.volunteerRoles,groups:form.groups,notes:form.notes,photo:form.photo};const {data,error}=await supabase.from("members").insert(mapped).select().single(); if(error){console.error("INSERT MEMBER ERROR:",JSON.stringify(error));alert("Save failed: "+error.message);return;}
+      const mapped=buildMemberMapped(form,null);const {data,error}=await supabase.from("members").insert(mapped).select().single(); if(error){console.error("INSERT MEMBER ERROR:",JSON.stringify(error));alert("Save failed: "+error.message);return;}
       const nm=data?normalize(data):{...form,id:nextMemberId};
       setMembers(ms=>[...ms,nm]);setNextMemberId(n=>n+1);setSelected(nm);setView("detail");return Promise.resolve();
       showToast(`${form.firstName||form.first_name} ${form.lastName||form.last_name} added ✓`);
