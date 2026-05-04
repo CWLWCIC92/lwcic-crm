@@ -189,6 +189,7 @@ function ConfirmModal({message,onConfirm,onCancel}){
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 const NAV = [
   {key:"dashboard",icon:"🏠",label:"Dashboard"},
+  {key:"signups",  icon:"📥",label:"New Signups",badge:true},
   {key:"members",  icon:"👥",label:"People & Families"},
   {key:"giving",   icon:"💰",label:"Giving"},
   {key:"attendance",icon:"📋",label:"Attendance"},
@@ -199,7 +200,7 @@ const NAV = [
   {key:"reports",  icon:"📊",label:"Reports & Export"},
 ];
 
-function Sidebar({active,onNav,onLogout}){
+function Sidebar({active,onNav,onLogout,signupsCount=0}){
   return <div style={{width:230,flexShrink:0,background:"linear-gradient(175deg,#0d2d5e 0%,#1B4F8A 100%)",display:"flex",flexDirection:"column",padding:"0 10px 20px",boxShadow:"4px 0 20px rgba(0,0,0,0.12)"}}>
     <div style={{padding:"24px 10px 20px",borderBottom:"1px solid rgba(255,255,255,0.1)",marginBottom:12}}>
       <div style={{fontFamily:"'Playfair Display',serif",color:"#fff",fontSize:16,fontWeight:800,lineHeight:1.3}}>Living Water<br/>Church In Christ</div>
@@ -213,6 +214,7 @@ function Sidebar({active,onNav,onLogout}){
           <span style={{fontSize:16}}>{n.icon}</span>
           <span>{n.label}</span>
           {n.soon&&<span style={{marginLeft:"auto",fontSize:9,background:"rgba(255,255,255,0.15)",color:"#c5d9f0",padding:"2px 6px",borderRadius:8}}>SOON</span>}
+          {n.badge&&signupsCount>0&&<span style={{marginLeft:"auto",fontSize:11,background:"#ef4444",color:"#fff",padding:"2px 8px",borderRadius:10,fontWeight:700,minWidth:22,textAlign:"center"}}>{signupsCount}</span>}
         </button>
       ))}
     </nav>
@@ -223,7 +225,143 @@ function Sidebar({active,onNav,onLogout}){
   </div>;
 }
 
-// ─── Dashboard ────────────────────────────────────────────────────────────────
+// ─── Signups Module ───────────────────────────────────────────────────────────
+function SignupsModule({signups,members,onApprove,onDismiss,onRefresh}){
+  const [confirmTarget,setConfirmTarget]=useState(null);
+  const [editingId,setEditingId]=useState(null);
+  const [editForm,setEditForm]=useState(null);
+  const [filter,setFilter]=useState("pending"); // pending | all | dismissed
+
+  const filtered=signups.filter(s=>{
+    if(filter==="pending")return !s.reviewed&&!s.added_to_crm;
+    if(filter==="dismissed")return s.reviewed&&!s.added_to_crm;
+    return true;
+  }).sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||""));
+
+  const startEdit=s=>{setEditingId(s.id);setEditForm({...s});};
+  const cancelEdit=()=>{setEditingId(null);setEditForm(null);};
+  const saveEdit=()=>{setConfirmTarget(editForm);setEditingId(null);};
+
+  const fmtDate=s=>{
+    if(!s)return "";
+    const d=new Date(s);
+    return d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})+" at "+d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
+  };
+
+  const phoneExists=phone=>{
+    const digits=(phone||"").replace(/\D/g,"");
+    return members.some(m=>(m.phone||"").replace(/\D/g,"")===digits);
+  };
+
+  return <div className="fade-in">
+    <SectionHeader emoji="📥" title="New Signups"/>
+    <div style={{color:"#64748b",fontSize:14,marginBottom:20,marginTop:-8}}>Review Connect Card submissions from livingwatercic.org before adding to your members list.</div>
+
+    <div style={{display:"flex",gap:8,marginBottom:20,background:"#fff",borderRadius:12,padding:5,boxShadow:"0 2px 8px rgba(0,0,0,0.06)",width:"fit-content"}}>
+      {[["pending","🟢 Pending Review"],["dismissed","🗑️ Dismissed"],["all","📋 All"]].map(([k,l])=>(
+        <button key={k} className="tab-btn" onClick={()=>setFilter(k)} style={{background:filter===k?"#1B4F8A":"transparent",color:filter===k?"#fff":"#64748b",flex:"none",padding:"9px 18px"}}>{l}</button>
+      ))}
+      <button onClick={onRefresh} style={{padding:"9px 14px",background:"transparent",border:"none",color:"#64748b",cursor:"pointer",fontSize:13}}>🔄 Refresh</button>
+    </div>
+
+    {filtered.length===0?(
+      <div style={{background:"#fff",borderRadius:12,padding:60,textAlign:"center",color:"#94a3b8",boxShadow:"0 2px 8px rgba(0,0,0,0.04)"}}>
+        <div style={{fontSize:48,marginBottom:12}}>{filter==="pending"?"📭":"📁"}</div>
+        <div style={{fontSize:16,fontWeight:600,color:"#64748b"}}>{filter==="pending"?"No pending signups":"No signups in this view"}</div>
+        <div style={{fontSize:13,marginTop:6}}>{filter==="pending"?"New Connect Card submissions will appear here.":"Try a different filter above."}</div>
+      </div>
+    ):(
+      <div style={{display:"grid",gap:16}}>
+        {filtered.map(s=>{
+          const isEditing=editingId===s.id;
+          const f=isEditing?editForm:s;
+          const dup=phoneExists(s.phone);
+          const isDismissed=s.reviewed&&!s.added_to_crm;
+          const isApproved=s.added_to_crm;
+          return <div key={s.id} style={{background:"#fff",borderRadius:12,padding:24,boxShadow:"0 2px 8px rgba(0,0,0,0.06)",border:isDismissed?"1px dashed #cbd5e1":"1px solid #e2e8f0",opacity:isDismissed?0.65:1}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14,flexWrap:"wrap",gap:10}}>
+              <div>
+                <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700,color:"#0d2d5e"}}>
+                  {f.first_name} {f.last_name}
+                  {f.status&&<span style={{marginLeft:10,fontSize:11,background:f.status==="Member"?"#dbeafe":"#fef3c7",color:f.status==="Member"?"#1e40af":"#92400e",padding:"3px 10px",borderRadius:10,fontWeight:600,verticalAlign:"middle"}}>Self-marked: {f.status}</span>}
+                </div>
+                <div style={{fontSize:12,color:"#94a3b8",marginTop:4}}>Submitted {fmtDate(s.created_at)}</div>
+              </div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {f.sms_opt_in&&<span style={{fontSize:11,background:"#dcfce7",color:"#166534",padding:"4px 10px",borderRadius:10,fontWeight:600}}>📱 SMS Opt-In</span>}
+                {dup&&!isApproved&&<span style={{fontSize:11,background:"#fee2e2",color:"#991b1b",padding:"4px 10px",borderRadius:10,fontWeight:600}}>⚠️ Phone exists</span>}
+                {isApproved&&<span style={{fontSize:11,background:"#dcfce7",color:"#166534",padding:"4px 10px",borderRadius:10,fontWeight:600}}>✅ Added</span>}
+                {isDismissed&&<span style={{fontSize:11,background:"#f1f5f9",color:"#64748b",padding:"4px 10px",borderRadius:10,fontWeight:600}}>🗑️ Dismissed</span>}
+              </div>
+            </div>
+
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+              {isEditing?(<>
+                <SignupField label="First Name" value={f.first_name} onChange={v=>setEditForm({...f,first_name:v})}/>
+                <SignupField label="Last Name" value={f.last_name} onChange={v=>setEditForm({...f,last_name:v})}/>
+                <SignupField label="Phone" value={f.phone} onChange={v=>setEditForm({...f,phone:v})}/>
+                <SignupField label="Email" value={f.email||""} onChange={v=>setEditForm({...f,email:v})}/>
+                <SignupField label="Address" value={f.address||""} onChange={v=>setEditForm({...f,address:v})}/>
+                <SignupField label="City" value={f.city||""} onChange={v=>setEditForm({...f,city:v})}/>
+                <SignupField label="State" value={f.state||""} onChange={v=>setEditForm({...f,state:v})}/>
+                <SignupField label="ZIP" value={f.zip||""} onChange={v=>setEditForm({...f,zip:v})}/>
+              </>):(<>
+                <SignupKV label="📞 Phone" value={f.phone}/>
+                <SignupKV label="✉️ Email" value={f.email||"—"}/>
+                <SignupKV label="🏠 Address" value={[f.address,f.city,f.state,f.zip].filter(Boolean).join(", ")||"—"}/>
+                <SignupKV label="🎂 Birthday" value={f.birthday||"—"}/>
+                <SignupKV label="👋 Found Us Via" value={f.found_us_via||"—"}/>
+              </>)}
+            </div>
+
+            {f.prayer_request&&<div style={{background:"#faf5ff",border:"1px solid #e9d5ff",borderRadius:8,padding:"12px 14px",marginBottom:14}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#6b21a8",letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>🙏 Prayer Request</div>
+              <div style={{fontSize:14,color:"#374151",lineHeight:1.6,fontStyle:"italic"}}>"{f.prayer_request}"</div>
+            </div>}
+
+            {!isApproved&&!isDismissed&&<div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+              {isEditing?(<>
+                <button onClick={saveEdit} style={btnPrimary}>✅ Save & Add as Visitor</button>
+                <button onClick={cancelEdit} style={btnGhost}>Cancel</button>
+              </>):(<>
+                <button onClick={()=>setConfirmTarget(s)} style={btnPrimary}>✅ Approve & Add as Visitor</button>
+                <button onClick={()=>startEdit(s)} style={btnSecondary}>📝 Edit Before Adding</button>
+                <button onClick={()=>onDismiss(s.id)} style={btnDanger}>🗑️ Dismiss</button>
+              </>)}
+            </div>}
+          </div>;
+        })}
+      </div>
+    )}
+
+    {confirmTarget&&<ConfirmModal
+      message={`Add ${confirmTarget.first_name} ${confirmTarget.last_name} to your members list as a Visitor? Their phone, email, and SMS opt-in preference will be preserved.`}
+      onConfirm={()=>{onApprove(confirmTarget);setConfirmTarget(null);setEditForm(null);}}
+      onCancel={()=>setConfirmTarget(null)}
+    />}
+  </div>;
+}
+
+const btnPrimary={padding:"10px 18px",borderRadius:8,border:"none",background:"#1B4F8A",color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"};
+const btnSecondary={padding:"10px 18px",borderRadius:8,border:"1px solid #cbd5e1",background:"#fff",color:"#475569",fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"};
+const btnDanger={padding:"10px 18px",borderRadius:8,border:"1px solid #fecaca",background:"#fff",color:"#b91c1c",fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"};
+const btnGhost={padding:"10px 18px",borderRadius:8,border:"none",background:"transparent",color:"#64748b",fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"};
+
+function SignupKV({label,value}){
+  return <div>
+    <div style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>{label}</div>
+    <div style={{fontSize:14,color:"#0f172a"}}>{value}</div>
+  </div>;
+}
+
+function SignupField({label,value,onChange}){
+  return <div>
+    <div style={{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>{label}</div>
+    <input type="text" value={value} onChange={e=>onChange(e.target.value)} style={{width:"100%",padding:"8px 10px",border:"1px solid #cbd5e1",borderRadius:6,fontSize:14,fontFamily:"'DM Sans',sans-serif"}}/>
+  </div>;
+}
+
+// ─── Dashboard────────────────────────────────────────────────────────────────
 function Dashboard({members,giving,attendance,groups,events,onNav}){
   const today=new Date();
   const thisMonth=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}`;
@@ -1680,6 +1818,87 @@ export default function App({handleLogout}){
   const [events,setEvents]=useState(initialEvents);
   const [messages,setMessages]=useState(initialMessages);
   const [navPage,setNavPage]=useState("dashboard");
+  const [signups,setSignups]=useState([]);
+
+  const loadSignups=async()=>{
+    const {data,error}=await supabase.from("contact_signups").select("*").order("created_at",{ascending:false});
+    if(error){console.error("loadSignups error",error);return;}
+    setSignups(data||[]);
+  };
+  useEffect(()=>{loadSignups();},[]);
+
+  const signupsPending=signups.filter(s=>!s.reviewed&&!s.added_to_crm).length;
+
+  const handleApproveSignup=async(s)=>{
+    // Log the approval action to the immutable consent log
+    await supabase.from("sms_consent_log").insert([{
+      event_type:"approved_and_added_to_members",
+      contact_signup_id:s.id,
+      first_name:s.first_name,
+      last_name:s.last_name,
+      phone:s.phone,
+      email:s.email,
+      consent_given:s.sms_opt_in||false,
+      admin_user:currentUser?.email||"unknown",
+      notes:`Admin approved signup and added to members table as Visitor. Original SMS opt-in: ${s.sms_opt_in?"YES":"NO"}.`,
+    }]);
+    // Build a member record from the signup
+    const newMember={
+      first_name:s.first_name,
+      last_name:s.last_name,
+      middle_name:null,
+      phone:s.phone,
+      email:s.email,
+      address:s.address,
+      address_2:null,
+      city:s.city,
+      state:s.state,
+      zip:s.zip,
+      birthday:null, // birthday on form is MM/DD only — pastor can fill year later
+      anniversary:null,
+      join_date:new Date().toISOString().split("T")[0],
+      visitor_source:s.found_us_via,
+      status:"Visitor",
+      saved:false,
+      saved_date:null,
+      baptized:false,
+      baptism_date:null,
+      membership_class:false,
+      volunteer_roles:[],
+      groups:[],
+      notes:s.prayer_request?`Prayer request from Connect Card: ${s.prayer_request}`:null,
+      sms_opt_in:s.sms_opt_in||false,
+      sms_opt_in_date:s.sms_opt_in_date,
+      sms_opt_in_source:"Web Connect Card",
+    };
+    const {error:insErr}=await supabase.from("members").insert([newMember]);
+    if(insErr){alert("Could not add member: "+insErr.message);return;}
+    const {error:updErr}=await supabase.from("contact_signups").update({reviewed:true,added_to_crm:true,updated_at:new Date().toISOString()}).eq("id",s.id);
+    if(updErr)console.warn("signup update warning",updErr);
+    await loadSignups();
+    await loadAll(); // reload members so new addition appears immediately
+  };
+
+  const handleDismissSignup=async(id)=>{
+    // Find the signup to capture details for the log
+    const signup=signups.find(s=>s.id===id);
+    if(signup){
+      await supabase.from("sms_consent_log").insert([{
+        event_type:"manually_dismissed_by_admin",
+        contact_signup_id:id,
+        first_name:signup.first_name,
+        last_name:signup.last_name,
+        phone:signup.phone,
+        email:signup.email,
+        consent_given:false,
+        admin_user:currentUser?.email||"unknown",
+        notes:"Admin dismissed signup; not added to members table. Likely spam, test, or duplicate.",
+      }]);
+    }
+    const {error}=await supabase.from("contact_signups").update({reviewed:true,added_to_crm:false,updated_at:new Date().toISOString()}).eq("id",id);
+    if(error){alert("Could not dismiss: "+error.message);return;}
+    await loadSignups();
+  };
   const [view,setView]=useState("list");
   const [selected,setSelected]=useState(null);
   const [deleteTarget,setDeleteTarget]=useState(null);
@@ -1828,6 +2047,7 @@ if(mData?.length) setMembers(mData.map(normalize));
 
   const renderContent=()=>{
     if(navPage==="dashboard")  return <Dashboard members={members} giving={giving} attendance={attendance} groups={groups} events={events} onNav={handleNav}/>;
+    if(navPage==="signups")    return <SignupsModule signups={signups} members={members} onApprove={handleApproveSignup} onDismiss={handleDismissSignup} onRefresh={loadSignups}/>;
     if(navPage==="giving")     return <GivingModule members={members} giving={giving} onAddGift={handleAddGift} onDeleteGift={handleDeleteGift}/>;
     if(navPage==="attendance") return <AttendanceModule members={members} attendance={attendance} onSaveService={handleSaveService}/>;
     if(navPage==="groups")     return <GroupsModule members={members} groups={groups} onSaveGroup={handleSaveGroup} onDeleteGroup={handleDeleteGroup} currentUser={currentUser}/>;
@@ -1854,7 +2074,7 @@ if(mData?.length) setMembers(mData.map(normalize));
     <FontLoader/>
     <div id="print-statement"></div>
     <div style={{display:"flex",height:"100vh",overflow:"hidden",background:"#f0f4f9"}}>
-      <Sidebar active={navPage} onNav={handleNav} onLogout={handleLogout}/>
+      <Sidebar active={navPage} onNav={handleNav} onLogout={handleLogout} signupsCount={signupsPending}/>
       <div style={{flex:1,overflow:"auto",padding:"28px 32px"}}>{renderContent()}</div>
       {toast&&<div style={{position:"fixed",bottom:28,right:28,background:toast.color,color:"#fff",padding:"12px 22px",borderRadius:12,fontWeight:600,fontSize:14,boxShadow:"0 4px 20px rgba(0,0,0,0.2)",animation:"fadeIn 0.2s ease",zIndex:300}}>{toast.msg}</div>}
       {deleteTarget&&<ConfirmModal message={`Permanently remove ${deleteTarget.firstName} ${deleteTarget.lastName}? This cannot be undone.`} onConfirm={handleDeleteMember} onCancel={()=>setDeleteTarget(null)}/>}
