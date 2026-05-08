@@ -172,7 +172,7 @@ function FieldBlock({label,value}){return <div><div style={{fontSize:10,color:"#
 function SectionHeader({emoji,title}){return <div style={{fontFamily:"'Playfair Display',serif",fontSize:17,fontWeight:700,color:"#0d2d5e",marginBottom:18,display:"flex",alignItems:"center",gap:8}}><span>{emoji}</span>{title}</div>;}
 function GroupDot({color,size=10}){return <span style={{width:size,height:size,borderRadius:"50%",background:color,display:"inline-block",flexShrink:0}}/>;}
 
-function ConfirmModal({message,onConfirm,onCancel}){
+function ConfirmModal({message,onConfirm,onCancel,confirmLabel="Yes, Remove"}){
   return <div style={{position:"fixed",inset:0,background:"rgba(10,20,40,0.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200}}>
     <div className="card fade-in" style={{padding:"32px 36px",maxWidth:380,width:"90%",textAlign:"center"}}>
       <div style={{fontSize:36,marginBottom:12}}>⚠️</div>
@@ -180,7 +180,7 @@ function ConfirmModal({message,onConfirm,onCancel}){
       <div style={{fontSize:14,color:"#64748b",marginBottom:28,lineHeight:1.6}}>{message}</div>
       <div style={{display:"flex",gap:10,justifyContent:"center"}}>
         <button className="btn-ghost" onClick={onCancel}>Cancel</button>
-        <button className="btn-danger" onClick={onConfirm}>Yes, Remove</button>
+        <button className="btn-danger" onClick={onConfirm}>{confirmLabel}</button>
       </div>
     </div>
   </div>;
@@ -336,6 +336,7 @@ function SignupsModule({signups,members,onApprove,onDismiss,onRefresh}){
 
     {confirmTarget&&<ConfirmModal
       message={`Add ${confirmTarget.first_name} ${confirmTarget.last_name} to your members list as a Visitor? Their phone, email, and SMS opt-in preference will be preserved.`}
+      confirmLabel="Yes, Add as Visitor"
       onConfirm={()=>{onApprove(confirmTarget);setConfirmTarget(null);setEditForm(null);}}
       onCancel={()=>setConfirmTarget(null)}
     />}
@@ -600,173 +601,325 @@ function GroupsModule({members,groups,onSaveGroup,onDeleteGroup,currentUser}){
 }
 
 // ─── COMMUNICATIONS MODULE ────────────────────────────────────────────────────
-function CommsModule({members,groups,messages,onSendMessage,currentUser}){
-  const [subView,setSubView]=useState("compose"); // compose | log
-  const [form,setForm]=useState({channel:"Email",toType:"all",toGroup:"",toMember:"",subject:"",body:""});
-  const [sent,setSent]=useState(false);
-  const [errors,setErrors]=useState({});
+function CommsModule({members, groups, messages, onSendMessage, currentUser}){
+  // ─── TEST MODE ─────────────────────────────────────────────
+  // When TEST_MODE is true, audience is filtered to TEST_RECIPIENT_PHONE only.
+  // Set to false after live-fire test passes to enable production sends.
+  const TEST_MODE = false;
+  const TEST_RECIPIENT_MEMBER_ID = 67;  // William Baldwin (C.W.) — phone 412-932-4646
+  // ───────────────────────────────────────────────────────────
+  const SUPABASE_URL = "https://moyhcebdltdnfxdbbxvs.supabase.co";
+  const EDGE_FUNCTION_URL = SUPABASE_URL + "/functions/v1/send-announcement";
 
-  const canSendToAll=currentUser.role==="Pastor"||currentUser.role==="Co-Pastor";
-  const myGroups=canSendToAll?groups:groups.filter(g=>g.leaderId===currentUser.id);
-  const activeMembers=useMemo(()=>[...members].filter(m=>m.status==="Member"||m.status==="Visitor").sort((a,b)=>(a.lastName||"").localeCompare(b.lastName||"")),[members]);
+  const [tab, setTab] = useState("send");
+  const [messageBody, setMessageBody] = useState("");
+  const [sentBy, setSentBy] = useState("C.W.");
+  const [audienceCount, setAudienceCount] = useState(null);
+  const [optedOutCount, setOptedOutCount] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState(null);
 
-  const recipientCount=useMemo(()=>{
-    if(form.toType==="all")return members.filter(m=>m.status==="Member").length;
-    if(form.toType==="group"&&form.toGroup){
-      const g=groups.find(x=>x.id===+form.toGroup);
-      return g?g.members.length:0;
-    }
-    if(form.toType==="member"&&form.toMember)return 1;
-    return 0;
-  },[form,members,groups]);
+  // Character / segment math (GSM-7 standard: 160 chars = 1 segment, 153 chars per multi-segment)
+  const charCount = messageBody.length;
+  const segments = charCount === 0 ? 0 : (charCount <= 160 ? 1 : Math.ceil(charCount / 153));
+  const charLimitWarning = charCount > 160;
 
-  const getRecipientLabel=()=>{
-    if(form.toType==="all")return"All Members";
-    if(form.toType==="group"&&form.toGroup){
-      const g=groups.find(x=>x.id===+form.toGroup);
-      return g?g.name:"";
+  // Load audience count and history
+  const refreshData = useCallback(async () => {
+    setLoading(true);
+    try {
+      let optedInQuery = supabase
+        .from("members")
+        .select("id", {count: "exact", head: true})
+        .eq("sms_consent_given", true)
+        .eq("sms_opted_out", false)
+        .not("phone", "is", null);
+      if (TEST_MODE) optedInQuery = optedInQuery.eq("id", TEST_RECIPIENT_MEMBER_ID);
+      const {count: optedIn} = await optedInQuery;
+      const {count: optedOut} = await supabase
+        .from("members")
+        .select("id", {count: "exact", head: true})
+        .eq("sms_opted_out", true);
+      setAudienceCount(optedIn || 0);
+      setOptedOutCount(optedOut || 0);
+
+      const {data: hist} = await supabase
+        .from("sms_announcements")
+        .select("*")
+        .order("created_at", {ascending: false})
+        .limit(20);
+      setHistory(hist || []);
+    } catch (err) {
+      console.error("CommsModule load error:", err);
+    } finally {
+      setLoading(false);
     }
-    if(form.toType==="member"&&form.toMember){
-      const m=members.find(x=>x.id===+form.toMember);
-      return m?`${m.firstName} ${m.lastName}`:"";
-    }
-    return"";
+  }, []);
+
+  useEffect(() => { refreshData(); }, [refreshData]);
+
+  const canSend = messageBody.trim().length > 0 && audienceCount > 0 && !sending;
+  const canConfirm = confirmText === "SEND";
+
+  const openConfirm = () => {
+    setConfirmText("");
+    setResult(null);
+    setShowConfirm(true);
   };
 
-  const validate=()=>{
-    const e={};
-    if(form.toType==="group"&&!form.toGroup)e.toGroup="Select a group";
-    if(form.toType==="member"&&!form.toMember)e.toMember="Select a member";
-    if(form.channel==="Email"&&!form.subject.trim())e.subject="Subject required for emails";
-    if(!form.body.trim())e.body="Message body required";
-    return e;
+  const handleSend = async () => {
+    if (!canConfirm) return;
+    setSending(true);
+    setResult(null);
+    try {
+      // Step 1: insert announcement row
+      const {data: ann, error: insertErr} = await supabase
+        .from("sms_announcements")
+        .insert({
+          message_body: messageBody.trim(),
+          sent_by: sentBy,
+          audience_label: "all_opted_in",
+        })
+        .select()
+        .single();
+      if (insertErr || !ann) throw new Error(insertErr?.message || "Failed to create announcement");
+
+      // Step 2: call the Edge Function
+      const {data: {session}} = await supabase.auth.getSession();
+      const authToken = session?.access_token || "";
+      const res = await fetch(EDGE_FUNCTION_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + authToken,
+        },
+        body: JSON.stringify({announcement_id: ann.id}),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Edge function returned error");
+
+      setResult({success: true, ...json});
+      setMessageBody("");
+      setShowConfirm(false);
+      setConfirmText("");
+      await refreshData();
+    } catch (err) {
+      console.error("Send error:", err);
+      setResult({success: false, error: err.message || String(err)});
+    } finally {
+      setSending(false);
+    }
   };
 
-  const handleSend=()=>{
-    const e=validate();
-    if(Object.keys(e).length){setErrors(e);return;}
-    onSendMessage({
-      channel:form.channel,
-      to:getRecipientLabel(),
-      toGroup:form.toType==="group"?+form.toGroup:null,
-      subject:form.subject,
-      body:form.body,
-      sentBy:currentUser.id,
-      date:todayStr(),
-    });
-    setSent(true);
-    setErrors({});
-    setTimeout(()=>{setSent(false);setForm({channel:"Email",toType:"all",toGroup:"",toMember:"",subject:"",body:""});},2500);
-  };
+  // ─── Render ──────────────────────────────────────────────
+  return (
+    <div style={{padding:24}}>
+      <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:20}}>
+        <h2 style={{fontFamily:"Playfair Display, serif",fontSize:28,fontWeight:700,color:"#1B4F8A",margin:0}}>📢 Communications</h2>
+        <div style={{fontSize:13,color:"#64748b"}}>Mass SMS via Twilio toll-free • TCPA-compliant</div>
+      </div>
 
-  return <div className="fade-in">
-    <div style={{marginBottom:20}}>
-      <div style={{fontFamily:"'Playfair Display',serif",fontSize:24,fontWeight:800,color:"#0d2d5e"}}>📨 Communications</div>
-      <div style={{fontSize:13,color:"#64748b",marginTop:2}}>{messages.length} messages sent</div>
-    </div>
-    <div style={{display:"flex",gap:6,marginBottom:18}}>
-      {[["compose","✍️ Compose"],["log","📋 Message Log"]].map(([key,label])=>(
-        <button key={key} className="tab-btn" onClick={()=>setSubView(key)}
-          style={{background:subView===key?"#1B4F8A":"#fff",color:subView===key?"#fff":"#64748b",boxShadow:"0 1px 4px rgba(0,0,0,0.08)",flex:"none",padding:"9px 20px"}}>
-          {label}
-        </button>
-      ))}
-    </div>
-
-    {subView==="compose"&&<div className="slide-in" style={{maxWidth:680}}>
-      <div className="card" style={{padding:28}}>
-        <SectionHeader emoji="✍️" title="New Message"/>
-
-        {/* Channel toggle */}
-        <div style={{marginBottom:20}}>
-          <label style={{display:"block",fontSize:11,color:"#64748b",fontWeight:600,marginBottom:8,textTransform:"uppercase",letterSpacing:0.6}}>Send Via</label>
-          <div style={{display:"flex",gap:0,borderRadius:9,overflow:"hidden",border:"1.5px solid #dde3ed",width:"fit-content"}}>
-            {["Email","SMS"].map(ch=>(
-              <button key={ch} onClick={()=>setForm(f=>({...f,channel:ch}))} style={{padding:"9px 28px",border:"none",background:form.channel===ch?"#1B4F8A":"#fff",color:form.channel===ch?"#fff":"#64748b",fontWeight:600,fontSize:14,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.15s"}}>
-                {ch==="Email"?"📧 Email":"📱 SMS"}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* To */}
-        <div style={{marginBottom:16}}>
-          <label style={{display:"block",fontSize:11,color:"#64748b",fontWeight:600,marginBottom:8,textTransform:"uppercase",letterSpacing:0.6}}>To</label>
-          <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
-            {canSendToAll&&<button onClick={()=>setForm(f=>({...f,toType:"all",toGroup:"",toMember:""}))} style={{padding:"7px 16px",borderRadius:20,fontSize:13,cursor:"pointer",fontWeight:600,background:form.toType==="all"?"#1B4F8A":"#f1f5f9",color:form.toType==="all"?"#fff":"#475569",border:form.toType==="all"?"1px solid #1B4F8A":"1px solid #cbd5e1"}}>🌍 All Members</button>}
-            <button onClick={()=>setForm(f=>({...f,toType:"group",toMember:""}))} style={{padding:"7px 16px",borderRadius:20,fontSize:13,cursor:"pointer",fontWeight:600,background:form.toType==="group"?"#1B4F8A":"#f1f5f9",color:form.toType==="group"?"#fff":"#475569",border:form.toType==="group"?"1px solid #1B4F8A":"1px solid #cbd5e1"}}>⛪ Specific Group</button>
-            <button onClick={()=>setForm(f=>({...f,toType:"member",toGroup:""}))} style={{padding:"7px 16px",borderRadius:20,fontSize:13,cursor:"pointer",fontWeight:600,background:form.toType==="member"?"#1B4F8A":"#f1f5f9",color:form.toType==="member"?"#fff":"#475569",border:form.toType==="member"?"1px solid #1B4F8A":"1px solid #cbd5e1"}}>👤 Individual</button>
-          </div>
-          {form.toType==="group"&&<div>
-            <select className="field-input" value={form.toGroup} onChange={e=>setForm(f=>({...f,toGroup:e.target.value}))} style={{borderColor:errors.toGroup?"#c62828":undefined}}>
-              <option value="">Select group…</option>
-              {myGroups.map(g=><option key={g.id} value={g.id}>{g.name}</option>)}
-            </select>
-            {errors.toGroup&&<div style={{fontSize:11,color:"#c62828",marginTop:3}}>{errors.toGroup}</div>}
-          </div>}
-          {form.toType==="member"&&<div>
-            <select className="field-input" value={form.toMember} onChange={e=>setForm(f=>({...f,toMember:e.target.value}))} style={{borderColor:errors.toMember?"#c62828":undefined}}>
-              <option value="">Select member…</option>
-              {activeMembers.map(m=><option key={m.id} value={m.id}>{m.lastName}, {m.firstName}</option>)}
-            </select>
-            {errors.toMember&&<div style={{fontSize:11,color:"#c62828",marginTop:3}}>{errors.toMember}</div>}
-          </div>}
-          {recipientCount>0&&<div style={{marginTop:8,fontSize:12,color:"#2e7d32",fontWeight:600}}>✓ {recipientCount} recipient{recipientCount!==1?"s":""} will receive this message</div>}
-        </div>
-
-        {/* Subject (email only) */}
-        {form.channel==="Email"&&<div style={{marginBottom:16}}>
-          <label style={{display:"block",fontSize:11,color:errors.subject?"#c62828":"#64748b",fontWeight:600,marginBottom:4,textTransform:"uppercase",letterSpacing:0.6}}>Subject{errors.subject&&<span style={{color:"#c62828"}}> — {errors.subject}</span>}</label>
-          <input className="field-input" value={form.subject} onChange={e=>setForm(f=>({...f,subject:e.target.value}))} placeholder="e.g. Sunday Service Reminder" style={{borderColor:errors.subject?"#c62828":undefined}}/>
-        </div>}
-
-        {/* Body */}
-        <div style={{marginBottom:20}}>
-          <label style={{display:"block",fontSize:11,color:errors.body?"#c62828":"#64748b",fontWeight:600,marginBottom:4,textTransform:"uppercase",letterSpacing:0.6}}>
-            Message{form.channel==="SMS"?` (${form.body.length}/160 chars)`:""}
-            {errors.body&&<span style={{color:"#c62828"}}> — {errors.body}</span>}
-          </label>
-          <textarea className="field-input" value={form.body} onChange={e=>setForm(f=>({...f,body:e.target.value}))}
-            rows={form.channel==="SMS"?4:7} maxLength={form.channel==="SMS"?160:undefined}
-            placeholder={form.channel==="SMS"?"Type your text message (max 160 characters)…":"Type your email message here…"}
-            style={{resize:"vertical",borderColor:errors.body?"#c62828":undefined}}/>
-        </div>
-
-        <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-          <button className="btn-primary" onClick={handleSend} style={{minWidth:160,background:sent?"#2e7d32":undefined}}>
-            {sent?`✅ ${form.channel} Sent!`:`📤 Send ${form.channel}`}
+      {/* Sub-tabs */}
+      <div style={{display:"flex",gap:4,marginBottom:20,borderBottom:"1px solid #e2e8f0"}}>
+        {[{k:"send",label:"Send Announcement"},{k:"history",label:"History"}].map(t => (
+          <button key={t.k} onClick={()=>setTab(t.k)}
+            style={{padding:"10px 18px",border:"none",background:"transparent",cursor:"pointer",
+              fontSize:14,fontWeight:600,
+              color: tab===t.k ? "#1B4F8A" : "#64748b",
+              borderBottom: tab===t.k ? "2px solid #1B4F8A" : "2px solid transparent",
+              marginBottom:-1}}>
+            {t.label}
           </button>
-          <div style={{fontSize:12,color:"#94a3b8"}}>
-            {sent
-              ? `Logged to Message Log — will deliver via ${form.channel==="Email"?"SendGrid":"Twilio"} once connected in Phase 5`
-              : form.channel==="Email"?"Will send via SendGrid (Phase 5)":"Will send via Twilio SMS (Phase 5)"}
+        ))}
+      </div>
+
+      {/* SEND VIEW */}
+      {tab === "send" && (
+        <div>
+          {/* TEST MODE banner */}
+          {TEST_MODE && (
+            <div style={{background:"#fef3c7",border:"2px solid #f59e0b",borderRadius:12,padding:14,marginBottom:16}}>
+              <div style={{fontSize:14,fontWeight:700,color:"#92400e",marginBottom:4}}>🧪 TEST MODE ACTIVE</div>
+              <div style={{fontSize:13,color:"#78350f"}}>
+                Only member ID <code style={{background:"#fde68a",padding:"1px 5px",borderRadius:3}}>{TEST_RECIPIENT_MEMBER_ID}</code> (C.W.'s record) will receive this announcement. Set <code style={{background:"#fde68a",padding:"1px 5px",borderRadius:3}}>TEST_MODE = false</code> in CRM.jsx to enable production sends.
+              </div>
+            </div>
+          )}
+          {/* Audience card */}
+          <div style={{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:12,padding:16,marginBottom:16}}>
+            <div style={{fontSize:12,fontWeight:600,color:"#64748b",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Audience</div>
+            {loading ? (
+              <div style={{color:"#94a3b8"}}>Loading audience…</div>
+            ) : (
+              <>
+                <div style={{fontSize:18,fontWeight:600,color:"#1e293b"}}>
+                  All opted-in members
+                </div>
+                <div style={{fontSize:14,color:"#475569",marginTop:4}}>
+                  Will send to <strong style={{color:"#1B4F8A"}}>{audienceCount}</strong> {audienceCount === 1 ? "member" : "members"}
+                  {optedOutCount > 0 && <span style={{color:"#94a3b8"}}> &nbsp;•&nbsp; {optedOutCount} opted out (skipped automatically)</span>}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Message composer */}
+          <div style={{marginBottom:16}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:6}}>
+              <label style={{fontSize:13,fontWeight:600,color:"#1e293b"}}>Message</label>
+              <div style={{fontSize:12,color: charLimitWarning ? "#dc2626" : "#64748b"}}>
+                {charCount} chars • {segments} {segments === 1 ? "segment" : "segments"}
+                {charLimitWarning && " (multi-segment SMS costs more)"}
+              </div>
+            </div>
+            <textarea
+              value={messageBody}
+              onChange={(e)=>setMessageBody(e.target.value)}
+              placeholder="Type your announcement here. Members will receive this as a text from your church number."
+              rows={5}
+              style={{width:"100%",padding:12,fontSize:14,fontFamily:"inherit",
+                border:"1px solid #cbd5e1",borderRadius:8,resize:"vertical",
+                color:"#1e293b",background:"#fff"}}
+            />
+          </div>
+
+          {/* Sent by */}
+          <div style={{marginBottom:20}}>
+            <label style={{fontSize:13,fontWeight:600,color:"#1e293b",display:"block",marginBottom:6}}>Sent by</label>
+            <div style={{display:"flex",gap:8}}>
+              {["C.W.","Lisa"].map(name => (
+                <button key={name} onClick={()=>setSentBy(name)}
+                  style={{padding:"8px 16px",borderRadius:8,cursor:"pointer",fontSize:14,fontWeight:600,
+                    border: sentBy===name ? "2px solid #1B4F8A" : "1px solid #cbd5e1",
+                    background: sentBy===name ? "#dbeafe" : "#fff",
+                    color: sentBy===name ? "#1B4F8A" : "#64748b"}}>
+                  {name === "C.W." ? "Pastor C.W." : "Co-Pastor Lisa"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Send button */}
+          <button onClick={openConfirm} disabled={!canSend}
+            style={{padding:"12px 24px",borderRadius:8,border:"none",cursor: canSend ? "pointer" : "not-allowed",
+              fontSize:15,fontWeight:700,
+              background: canSend ? "#1B4F8A" : "#cbd5e1",
+              color:"#fff",
+              opacity: canSend ? 1 : 0.6}}>
+            📤 Review &amp; Send to {audienceCount || 0} {audienceCount === 1 ? "Member" : "Members"}
+          </button>
+
+          {/* Result banner */}
+          {result && !showConfirm && (
+            <div style={{marginTop:20,padding:16,borderRadius:8,
+              background: result.success ? "#dcfce7" : "#fee2e2",
+              border: "1px solid " + (result.success ? "#86efac" : "#fca5a5"),
+              color: result.success ? "#14532d" : "#7f1d1d"}}>
+              {result.success ? (
+                <div>
+                  <strong>✅ Sent.</strong> {result.summary}
+                </div>
+              ) : (
+                <div>
+                  <strong>❌ Send failed:</strong> {result.error}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* HISTORY VIEW */}
+      {tab === "history" && (
+        <div>
+          {loading ? (
+            <div style={{color:"#94a3b8",padding:20}}>Loading history…</div>
+          ) : history.length === 0 ? (
+            <div style={{color:"#94a3b8",padding:20,textAlign:"center"}}>
+              No announcements sent yet.
+            </div>
+          ) : (
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              {history.map(h => {
+                const sent = h.sent_at ? new Date(h.sent_at).toLocaleString() : "Not sent";
+                const failed = h.total_failed || 0;
+                return (
+                  <div key={h.id} style={{background:"#fff",border:"1px solid #e2e8f0",borderRadius:12,padding:16}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:8}}>
+                      <div style={{fontSize:13,fontWeight:600,color:"#64748b"}}>{sent} &nbsp;•&nbsp; by {h.sent_by}</div>
+                      <div style={{fontSize:13}}>
+                        <span style={{color:"#16a34a",fontWeight:600}}>✓ {h.total_sent || 0}</span>
+                        {failed > 0 && <span style={{color:"#dc2626",fontWeight:600,marginLeft:12}}>✗ {failed}</span>}
+                        <span style={{color:"#94a3b8",marginLeft:12}}>of {h.audience_snapshot_count || 0}</span>
+                      </div>
+                    </div>
+                    <div style={{fontSize:14,color:"#1e293b",whiteSpace:"pre-wrap"}}>{h.message_body}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* CONFIRM MODAL */}
+      {showConfirm && (
+        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(15,23,42,0.6)",
+          display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:20}}>
+          <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:520,width:"100%",
+            boxShadow:"0 20px 50px rgba(0,0,0,0.3)"}}>
+            <h3 style={{fontFamily:"Playfair Display, serif",fontSize:22,fontWeight:700,color:"#1B4F8A",margin:"0 0 8px 0"}}>
+              ⚠️ Confirm Mass SMS
+            </h3>
+            <p style={{fontSize:14,color:"#475569",margin:"0 0 16px 0"}}>
+              You are about to send to <strong>{audienceCount} {audienceCount === 1 ? "member" : "members"}</strong> from your church Twilio number. This <strong>cannot be undone.</strong>
+            </p>
+
+            <div style={{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:8,padding:14,marginBottom:16}}>
+              <div style={{fontSize:11,fontWeight:600,color:"#64748b",textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Message Preview</div>
+              <div style={{fontSize:14,color:"#1e293b",whiteSpace:"pre-wrap"}}>{messageBody}</div>
+              <div style={{fontSize:12,color:"#94a3b8",marginTop:8}}>— Sent by {sentBy} • {segments} SMS segment{segments !== 1 ? "s" : ""}</div>
+            </div>
+
+            <label style={{fontSize:13,fontWeight:600,color:"#1e293b",display:"block",marginBottom:6}}>
+              Type <code style={{background:"#fef3c7",padding:"2px 6px",borderRadius:4,fontWeight:700}}>SEND</code> to unlock the send button:
+            </label>
+            <input type="text" value={confirmText} onChange={(e)=>setConfirmText(e.target.value)} autoFocus
+              placeholder="Type SEND here"
+              style={{width:"100%",padding:10,fontSize:14,border:"1px solid #cbd5e1",borderRadius:8,marginBottom:16}}
+            />
+
+            {result && !result.success && (
+              <div style={{padding:10,background:"#fee2e2",borderRadius:6,color:"#7f1d1d",fontSize:13,marginBottom:12}}>
+                {result.error}
+              </div>
+            )}
+
+            <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+              <button onClick={()=>{setShowConfirm(false);setConfirmText("");setResult(null);}}
+                disabled={sending}
+                style={{padding:"10px 18px",borderRadius:8,border:"1px solid #cbd5e1",
+                  background:"#fff",color:"#475569",fontSize:14,fontWeight:600,
+                  cursor: sending ? "not-allowed" : "pointer"}}>
+                Cancel
+              </button>
+              <button onClick={handleSend} disabled={!canConfirm || sending}
+                style={{padding:"10px 20px",borderRadius:8,border:"none",
+                  background: (canConfirm && !sending) ? "#dc2626" : "#cbd5e1",
+                  color:"#fff",fontSize:14,fontWeight:700,
+                  cursor: (canConfirm && !sending) ? "pointer" : "not-allowed"}}>
+                {sending ? "Sending…" : "Send to " + (audienceCount || 0) + " Members"}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    </div>}
-
-    {subView==="log"&&<div className="slide-in">
-      <div className="card" style={{overflow:"hidden"}}>
-        {messages.length===0?<div style={{padding:40,textAlign:"center",color:"#94a3b8"}}><div style={{fontSize:32,marginBottom:8}}>📭</div>No messages sent yet.</div>:
-          [...messages].sort((a,b)=>(b.date||"").localeCompare(a.date||"")).map(msg=>{
-            const sender=members.find(m=>m.id===msg.sentBy);
-            return <div key={msg.id} className="msg-row">
-              <div style={{width:36,height:36,borderRadius:10,background:msg.channel==="Email"?"#e8f0fe":"#e8f5e9",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>
-                {msg.channel==="Email"?"📧":"📱"}
-              </div>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
-                  <span style={{fontSize:14,fontWeight:700,color:"#1e293b"}}>{msg.channel==="Email"?msg.subject:"SMS Message"}</span>
-                  <span className="badge" style={{background:msg.channel==="Email"?"#e8f0fe":"#e8f5e9",color:msg.channel==="Email"?"#1B4F8A":"#2e7d32",borderColor:msg.channel==="Email"?"#a8c4f0":"#a5d6a7"}}>{msg.channel}</span>
-                </div>
-                <div style={{fontSize:13,color:"#64748b",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{msg.body}</div>
-                <div style={{fontSize:11,color:"#94a3b8"}}>To: <strong>{msg.to}</strong> · {fmt(msg.date)} · Sent by {sender?`${sender.firstName} ${sender.lastName}`:"Unknown"}</div>
-              </div>
-            </div>;
-          })}
-      </div>
-    </div>}
-  </div>;
+      )}
+    </div>
+  );
 }
 
 // ─── CALENDAR MODULE ──────────────────────────────────────────────────────────
@@ -1842,7 +1995,7 @@ export default function App({handleLogout}){
       admin_user:currentUser?.email||"unknown",
       notes:`Admin approved signup and added to members table as Visitor. Original SMS opt-in: ${s.sms_opt_in?"YES":"NO"}.`,
     }]);
-    // Build a member record from the signup
+    // Build a member record from the signup (column names match members table)
     const newMember={
       first_name:s.first_name,
       last_name:s.last_name,
@@ -1850,15 +2003,16 @@ export default function App({handleLogout}){
       phone:s.phone,
       email:s.email,
       address:s.address,
-      address_2:null,
+      address2:null,
       city:s.city,
       state:s.state,
       zip:s.zip,
-      birthday:null, // birthday on form is MM/DD only — pastor can fill year later
+      birthday:null,
       anniversary:null,
       join_date:new Date().toISOString().split("T")[0],
       visitor_source:s.found_us_via,
       status:"Visitor",
+      role:"Member",
       saved:false,
       saved_date:null,
       baptized:false,
@@ -1867,9 +2021,12 @@ export default function App({handleLogout}){
       volunteer_roles:[],
       groups:[],
       notes:s.prayer_request?`Prayer request from Connect Card: ${s.prayer_request}`:null,
+      sms_consent_given:s.sms_opt_in||false,
+      sms_consent_given_at:s.sms_opt_in_date,
       sms_opt_in:s.sms_opt_in||false,
       sms_opt_in_date:s.sms_opt_in_date,
       sms_opt_in_source:"Web Connect Card",
+      consent_source:"Web Connect Card",
     };
     const {error:insErr}=await supabase.from("members").insert([newMember]);
     if(insErr){alert("Could not add member: "+insErr.message);return;}
