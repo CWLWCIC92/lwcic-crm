@@ -18,6 +18,10 @@ const corsHeaders = {
 // Set to false ONLY after live-fire test passes and you're ready for production.
 // This is the second layer of protection (frontend has the same flag).
 const TEST_MODE = false;
+
+// TCPA disclosure footer — appended to every outgoing SMS
+// Carriers require periodic opt-out reminder; this satisfies it on every send
+const DISCLOSURE_FOOTER = "\n\nReply STOP to unsubscribe, HELP for help.";
 const TEST_RECIPIENT_MEMBER_ID = 67;
 // ───────────────────────────────────────────────────────────
 
@@ -161,7 +165,7 @@ Deno.serve(async (req) => {
       const formBody = new URLSearchParams({
         MessagingServiceSid: twilioMessagingServiceSid,
         To: e164,
-        Body: announcement.message_body,
+        Body: announcement.message_body + DISCLOSURE_FOOTER,
       });
 
       try {
