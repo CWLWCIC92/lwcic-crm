@@ -605,7 +605,7 @@ function CommsModule({members, groups, messages, onSendMessage, currentUser}){
   // ─── TEST MODE ─────────────────────────────────────────────
   // When TEST_MODE is true, audience is filtered to TEST_RECIPIENT_PHONE only.
   // Set to false after live-fire test passes to enable production sends.
-  const TEST_MODE = false;
+  const TEST_MODE = true;
   const TEST_RECIPIENT_MEMBER_ID = 67;  // William Baldwin (C.W.) — phone 412-932-4646
   // ───────────────────────────────────────────────────────────
   const SUPABASE_URL = "https://moyhcebdltdnfxdbbxvs.supabase.co";
