@@ -24,9 +24,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 // ─── Keywords carriers honor as opt-out (per CTIA guidelines) ───
 const OPT_OUT_KEYWORDS = ["STOP", "UNSUBSCRIBE", "CANCEL", "END", "QUIT", "OPTOUT", "OPT OUT", "STOPALL"];
 const HELP_KEYWORDS = ["HELP", "INFO"];
+const OPT_IN_KEYWORDS = ["UNSTOP", "START", "YES"];
 
 // Help response text (sent back to user when they text HELP)
 const HELP_RESPONSE = "Living Water Church In Christ texts. Reply STOP to unsubscribe. For pastoral care, call (412) 932-4646. Msg & data rates may apply.";
+const OPT_IN_RESPONSE = "You're re-subscribed to Living Water Church In Christ texts. Reply STOP to unsubscribe. Msg & data rates may apply.";
 
 // ─── Phone normalizer (matches send-announcement's helper) ───
 function toE164(phone: string): string | null {
@@ -57,6 +59,10 @@ function emptyTwiML(): string {
 
 function helpTwiML(): string {
   return `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${HELP_RESPONSE}</Message></Response>`;
+}
+
+function optInTwiML(): string {
+  return `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${OPT_IN_RESPONSE}</Message></Response>`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -90,6 +96,7 @@ Deno.serve(async (req) => {
     // Detect what kind of message this is
     const optOutKeyword = detectKeyword(messageBody, OPT_OUT_KEYWORDS);
     const helpKeyword = detectKeyword(messageBody, HELP_KEYWORDS);
+    const optInKeyword = detectKeyword(messageBody, OPT_IN_KEYWORDS);
 
     // ─── Branch: HELP keyword ───
     if (helpKeyword) {
@@ -102,6 +109,56 @@ Deno.serve(async (req) => {
         action_taken: "help_sent"
       });
       return new Response(helpTwiML(), { headers: { "Content-Type": "application/xml" } });
+    }
+
+    // ─── Branch: OPT-IN / re-subscribe keyword (UNSTOP, START, YES) ───
+    // Twilio does NOT auto-confirm opt-ins like it does opt-outs, so we send our own confirmation.
+    if (optInKeyword) {
+      let memberId: number | null = null;
+      let actionTaken = "no_match";
+
+      if (normalizedPhone) {
+        const { data: members, error: lookupError } = await supabase
+          .from("members")
+          .select("id, phone, sms_opted_out");
+
+        if (lookupError) {
+          console.error("Member lookup error:", lookupError);
+        } else if (members) {
+          const match = members.find((m: any) => toE164(m.phone) === normalizedPhone);
+          if (match) {
+            memberId = match.id;
+            if (match.sms_opted_out === false) {
+              actionTaken = "already_opted_in";
+            } else {
+              // Flip the opt-out flag back to false AND clear the opted_out timestamp
+              const { error: updateError } = await supabase
+                .from("members")
+                .update({ sms_opted_out: false })
+                .eq("id", match.id);
+              if (updateError) {
+                console.error("Update error:", updateError);
+              } else {
+                actionTaken = "opted_in";
+                console.log(`[OPT_IN] Flipped sms_opted_out=false for member_id=${match.id}`);
+              }
+            }
+          }
+        }
+      }
+
+      // Log the event regardless of match outcome
+      await supabase.from("sms_opt_out_log").insert({
+        member_id: memberId,
+        phone: normalizedPhone || fromPhone,
+        keyword_received: optInKeyword,
+        message_body: messageBody,
+        twilio_message_sid: messageSid,
+        action_taken: actionTaken
+      });
+
+      // Return our own confirmation — Twilio does NOT auto-confirm opt-ins
+      return new Response(optInTwiML(), { headers: { "Content-Type": "application/xml" } });
     }
 
     // ─── Branch: STOP / opt-out keyword ───
