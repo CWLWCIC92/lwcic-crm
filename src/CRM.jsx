@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import supabase from "./supabaseClient";
+import appSupabase from "./appSupabaseClient";
 
 
 
@@ -198,6 +199,8 @@ const NAV = [
   {key:"calendar", icon:"📅",label:"Events & Calendar"},
   {key:"reminders",icon:"🔔",label:"Auto-Reminders"},
   {key:"reports",  icon:"📊",label:"Reports & Export"},
+  {key:"app-updates", icon:"📱", label:"App Updates"},
+  {key:"sound-alarm", icon:"🚨", label:"Sound the Alarm"},
 ];
 
 function Sidebar({active,onNav,onLogout,signupsCount=0}){
@@ -1962,6 +1965,86 @@ function ReportsModule({members,giving,attendance,groups,events}){
   </div>;
 }
 
+// ─── App Updates Module (Phase C scaffolding) ──────────────────────────
+function AppUpdatesModule(){
+  const [tab, setTab] = useState("congregational");
+  const TABS = [
+    {key:"sermons",        icon:"🎙",  label:"Sermons",                soon:true},
+    {key:"events",         icon:"📅", label:"Events",                 soon:true},
+    {key:"announcements",  icon:"📢", label:"Announcements",          soon:true},
+    {key:"congregational", icon:"🙏", label:"Congregational Prayers", soon:false},
+  ];
+  return (
+    <div className="fade-in">
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:8}}>
+        <h2 style={{margin:0,fontFamily:"'Playfair Display',serif",fontSize:28,color:"#1B4F8A"}}>📱 App Updates</h2>
+      </div>
+      <div style={{color:"#64748b",fontSize:14,marginBottom:20}}>
+        Content that appears in the LWCIC mobile app. Edits here update the app for every member.
+      </div>
+
+      {/* Sub-tabs */}
+      <div style={{display:"flex",gap:8,marginBottom:20,background:"#fff",borderRadius:12,padding:5,boxShadow:"0 2px 8px rgba(0,0,0,0.06)",width:"fit-content"}}>
+        {TABS.map(t=>(
+          <button key={t.key}
+            onClick={()=>setTab(t.key)}
+              style={{background:tab===t.key?"#1B4F8A":"transparent",color:tab===t.key?"#fff":"#64748b",border:"none",padding:"9px 18px",borderRadius:8,cursor:t.soon?"default":"pointer",fontSize:13,fontWeight:600}}>
+            <span style={{marginRight:6}}>{t.icon}</span>{t.label}
+            {t.soon&&<span style={{marginLeft:8,fontSize:9,background:"rgba(100,116,139,0.15)",color:"#64748b",padding:"2px 6px",borderRadius:8}}>SOON</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      {tab==="congregational"&&(
+        <div style={{background:"#fff",borderRadius:12,padding:60,textAlign:"center",color:"#94a3b8",boxShadow:"0 2px 8px rgba(0,0,0,0.04)"}}>
+          <div style={{fontSize:48,marginBottom:12}}>🙏</div>
+          <div style={{fontSize:18,fontWeight:600,color:"#64748b",marginBottom:8}}>Congregational Prayers</div>
+          <div style={{fontSize:14,maxWidth:480,margin:"0 auto"}}>Pastor Lisa's weekly intercessory prayer digest. Schema is ready (table: <code>congregational_prayers</code>). Wiring coming next session — list view, new entry form, edit, soft delete.</div>
+        </div>
+      )}
+
+      {tab==="sermons"&&<PhaseCPlaceholder title="Sermons" icon="🎙" />}
+      {tab==="events"&&<PhaseCPlaceholder title="Events" icon="📅" />}
+      {tab==="announcements"&&<PhaseCPlaceholder title="Announcements" icon="📢" />}
+    </div>
+  );
+}
+
+function PhaseCPlaceholder({title,icon}){
+  return (
+    <div style={{background:"#fff",borderRadius:12,padding:60,textAlign:"center",color:"#94a3b8",boxShadow:"0 2px 8px rgba(0,0,0,0.04)"}}>
+      <div style={{fontSize:48,marginBottom:12}}>{icon}</div>
+      <div style={{fontSize:18,fontWeight:600,color:"#64748b",marginBottom:8}}>{title}</div>
+      <div style={{fontSize:14,maxWidth:480,margin:"0 auto",lineHeight:1.5}}>Already live in the app. Data is currently managed via direct Supabase edits. CRM editing UI coming next session.</div>
+    </div>
+  );
+}
+
+// ─── Sound the Alarm Module (Phase D scaffolding) ──────────────────────
+function SoundAlarmModule(){
+  return (
+    <div className="fade-in">
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:8}}>
+        <h2 style={{margin:0,fontFamily:"'Playfair Display',serif",fontSize:28,color:"#1B4F8A"}}>🚨 Sound the Alarm</h2>
+      </div>
+      <div style={{color:"#64748b",fontSize:14,marginBottom:20}}>
+        Send an urgent prayer alert as a push notification to every member of the congregation. Use sparingly — this rings every phone.
+      </div>
+      <div style={{background:"#fff",borderRadius:12,padding:60,textAlign:"center",color:"#94a3b8",boxShadow:"0 2px 8px rgba(0,0,0,0.04)"}}>
+        <div style={{fontSize:48,marginBottom:12}}>🚨</div>
+        <div style={{fontSize:18,fontWeight:600,color:"#64748b",marginBottom:8}}>Sound the Alarm Composer</div>
+        <div style={{fontSize:14,maxWidth:520,margin:"0 auto",lineHeight:1.5}}>
+          Schema is ready (tables: <code>prayer_alerts</code>, <code>prayer_alert_responses</code>).<br/>
+          Coming next: input sections (Push Notification, Opening, Prayer, Rally, Closing), preview-before-send, push fan-out via Edge Function, 🙏 Praying counter.
+        </div>
+        <div style={{fontSize:13,marginTop:16,color:"#94a3b8"}}>Phase D — Coming Soon</div>
+      </div>
+    </div>
+  );
+}
+
+
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App({handleLogout}){
   const [members,setMembers]=useState(initialMembers);
@@ -2212,6 +2295,8 @@ if(mData?.length) setMembers(mData.map(normalize));
     if(navPage==="calendar")   return <CalendarModule events={events} groups={groups} onSaveEvent={handleSaveEvent} onDeleteEvent={handleDeleteEvent}/>;
     if(navPage==="reminders")  return <RemindersModule members={members} attendance={attendance} events={events}/>;
     if(navPage==="reports")    return <ReportsModule members={members} giving={giving} attendance={attendance} groups={groups} events={events}/>;
+  if(navPage==="app-updates") return <AppUpdatesModule />;
+  if(navPage==="sound-alarm") return <SoundAlarmModule />;
     if(navPage==="members"){
       if(view==="list")   return <MemberList members={members} onSelect={handleSelect} onAdd={()=>{setSelected(null);setView("add");}}/>;
       if(view==="detail") return <MemberDetail member={selected} onEdit={()=>setView("edit")} onDelete={()=>setDeleteTarget(selected)} onBack={handleBack}/>;
