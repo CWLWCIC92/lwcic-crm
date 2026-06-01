@@ -21,7 +21,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const appSupabase = createClient(
   "https://ldjynhvueuyjjjlkkyff.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxkanluaHZ1ZXV5ampqbGtreWZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1MzM5OTEsImV4cCI6MjA4ODUwOTk5MX0.YK_eC9915lyytC7xYSyAkO-2V5GStEpbb3fRMHd6OpI"
+  "sb_publishable_7nKlUMfqli0LKc0884ENuQ_4zlcFb7Q"
 );
 
 export default appSupabase;

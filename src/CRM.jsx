@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import supabase from "./supabaseClient";
 import appSupabase from "./appSupabaseClient";
+import SermonsEditor from "./SermonsEditor";
 
 
 
@@ -1969,7 +1970,7 @@ function ReportsModule({members,giving,attendance,groups,events}){
 function AppUpdatesModule(){
   const [tab, setTab] = useState("congregational");
   const TABS = [
-    {key:"sermons",        icon:"🎙",  label:"Sermons",                soon:true},
+    {key:"sermons",        icon:"🎙",  label:"Sermons",                soon:false},
     {key:"events",         icon:"📅", label:"Events",                 soon:true},
     {key:"announcements",  icon:"📢", label:"Announcements",          soon:true},
     {key:"congregational", icon:"🙏", label:"Congregational Prayers", soon:false},
@@ -2004,7 +2005,7 @@ function AppUpdatesModule(){
         </div>
       )}
 
-      {tab==="sermons"&&<PhaseCPlaceholder title="Sermons" icon="🎙" />}
+      {tab==="sermons"&&<SermonsEditor />}
       {tab==="events"&&<PhaseCPlaceholder title="Events" icon="📅" />}
       {tab==="announcements"&&<PhaseCPlaceholder title="Announcements" icon="📢" />}
     </div>
