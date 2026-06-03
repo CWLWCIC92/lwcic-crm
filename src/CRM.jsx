@@ -4,6 +4,7 @@ import appSupabase from "./appSupabaseClient";
 import AnnouncementsEditor from "./AnnouncementsEditor";
 import EventsEditor from "./EventsEditor";
 import SermonsEditor from "./SermonsEditor";
+import CongregationalPrayersEditor from "./CongregationalPrayersEditor";
 
 
 
@@ -1999,13 +2000,7 @@ function AppUpdatesModule(){
       </div>
 
       {/* Tab content */}
-      {tab==="congregational"&&(
-        <div style={{background:"#fff",borderRadius:12,padding:60,textAlign:"center",color:"#94a3b8",boxShadow:"0 2px 8px rgba(0,0,0,0.04)"}}>
-          <div style={{fontSize:48,marginBottom:12}}>🙏</div>
-          <div style={{fontSize:18,fontWeight:600,color:"#64748b",marginBottom:8}}>Congregational Prayers</div>
-          <div style={{fontSize:14,maxWidth:480,margin:"0 auto"}}>Pastor Lisa's weekly intercessory prayer digest. Schema is ready (table: <code>congregational_prayers</code>). Wiring coming next session — list view, new entry form, edit, soft delete.</div>
-        </div>
-      )}
+      {tab==="congregational"&&<CongregationalPrayersEditor/>}
 
       {tab==="sermons"&&<SermonsEditor />}
       {tab==="events"&&<EventsEditor />}
