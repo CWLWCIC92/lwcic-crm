@@ -5,6 +5,7 @@ import AnnouncementsEditor from "./AnnouncementsEditor";
 import EventsEditor from "./EventsEditor";
 import SermonsEditor from "./SermonsEditor";
 import CongregationalPrayersEditor from "./CongregationalPrayersEditor";
+import SoundTheAlarmComposer from "./SoundTheAlarmComposer";
 
 
 
@@ -2026,18 +2027,8 @@ function SoundAlarmModule(){
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:8}}>
         <h2 style={{margin:0,fontFamily:"'Playfair Display',serif",fontSize:28,color:"#1B4F8A"}}>🚨 Sound the Alarm</h2>
       </div>
-      <div style={{color:"#64748b",fontSize:14,marginBottom:20}}>
-        Send an urgent prayer alert as a push notification to every member of the congregation. Use sparingly — this rings every phone.
-      </div>
-      <div style={{background:"#fff",borderRadius:12,padding:60,textAlign:"center",color:"#94a3b8",boxShadow:"0 2px 8px rgba(0,0,0,0.04)"}}>
-        <div style={{fontSize:48,marginBottom:12}}>🚨</div>
-        <div style={{fontSize:18,fontWeight:600,color:"#64748b",marginBottom:8}}>Sound the Alarm Composer</div>
-        <div style={{fontSize:14,maxWidth:520,margin:"0 auto",lineHeight:1.5}}>
-          Schema is ready (tables: <code>prayer_alerts</code>, <code>prayer_alert_responses</code>).<br/>
-          Coming next: input sections (Push Notification, Opening, Prayer, Rally, Closing), preview-before-send, push fan-out via Edge Function, 🙏 Praying counter.
-        </div>
-        <div style={{fontSize:13,marginTop:16,color:"#94a3b8"}}>Phase D — Coming Soon</div>
-      </div>
+      <div style={{color:"#64748b",fontSize:14,marginBottom:20}}>Compose an urgent prayer alert for the whole congregation. Publishing raises it inside the app right away; the phone push to every member is coming soon.</div>
+      <SoundTheAlarmComposer />
     </div>
   );
 }
