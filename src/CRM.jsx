@@ -6,6 +6,7 @@ import EventsEditor from "./EventsEditor";
 import SermonsEditor from "./SermonsEditor";
 import CongregationalPrayersEditor from "./CongregationalPrayersEditor";
 import SoundTheAlarmComposer from "./SoundTheAlarmComposer";
+import DevotionalPreview from "./DevotionalPreview";
 
 
 
@@ -206,6 +207,7 @@ const NAV = [
   {key:"reports",  icon:"📊",label:"Reports & Export"},
   {key:"app-updates", icon:"📱", label:"App Updates"},
   {key:"sound-alarm", icon:"🚨", label:"Sound the Alarm"},
+        {key:"devotional-preview", icon:"📖", label:"Tomorrow's Devotional"},
 ];
 
 function Sidebar({active,onNav,onLogout,signupsCount=0}){
@@ -2286,6 +2288,7 @@ if(mData?.length) setMembers(mData.map(normalize));
     if(navPage==="reports")    return <ReportsModule members={members} giving={giving} attendance={attendance} groups={groups} events={events}/>;
   if(navPage==="app-updates") return <AppUpdatesModule />;
   if(navPage==="sound-alarm") return <SoundAlarmModule />;
+  if(navPage==="devotional-preview") return <DevotionalPreview />;
     if(navPage==="members"){
       if(view==="list")   return <MemberList members={members} onSelect={handleSelect} onAdd={()=>{setSelected(null);setView("add");}}/>;
       if(view==="detail") return <MemberDetail member={selected} onEdit={()=>setView("edit")} onDelete={()=>setDeleteTarget(selected)} onBack={handleBack}/>;
