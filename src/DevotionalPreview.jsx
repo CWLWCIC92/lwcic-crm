@@ -43,38 +43,24 @@ export default function DevotionalPreview() {
       }));
 
       const { count, error: cErr } = await appSupabase
-        .from("verse_of_the_day_pool")
+        .from("votd_devotionals")
         .select("*", { count: "exact", head: true })
         .eq("active", true);
       if (cErr) throw cErr;
-      if (!count) { setError("No active verses in the rotation pool."); setLoading(false); return; }
+      if (!count) { setError("No active devotionals in the rotation."); setLoading(false); return; }
 
       const idx = rotationIndexFor(t, count);
-
-      const { data: poolRows, error: pErr } = await appSupabase
-        .from("verse_of_the_day_pool")
-        .select("id, book, chapter, verse_start, verse_end")
-        .eq("rotation_key", idx)
-        .eq("active", true)
-        .limit(1);
-      if (pErr) throw pErr;
-      const pr = poolRows && poolRows[0];
-      if (!pr) { setError("No active verse maps to tomorrow's rotation slot (key " + idx + " of " + count + ")."); setLoading(false); return; }
-
-      const ranged = pr.verse_end && pr.verse_end !== pr.verse_start;
-      const ref = ranged
-        ? pr.book + " " + pr.chapter + ":" + pr.verse_start + "-" + pr.verse_end
-        : pr.book + " " + pr.chapter + ":" + pr.verse_start;
-      setVerseRef(ref);
 
       const { data: devoRows, error: dErr } = await appSupabase
         .from("votd_devotionals")
         .select("title, body, reflection_questions, closing_prayer, scripture_ref, scripture_text, active, pastor_edited, ai_generated")
-        .eq("votd_pool_id", pr.id)
+        .eq("rotation_key", idx)
+        .eq("active", true)
         .limit(1);
       if (dErr) throw dErr;
       const d = devoRows && devoRows[0];
-      if (!d) { setError("Tomorrow's verse is " + ref + ", but no devotional is written for it yet."); setLoading(false); return; }
+      if (!d) { setError("No active devotional maps to tomorrow's rotation slot (key " + idx + " of " + count + ")."); setLoading(false); return; }
+      setVerseRef(d.scripture_ref);
       setDevo(d);
     } catch (e) {
       setError((e && e.message) || String(e));
